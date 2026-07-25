@@ -1,0 +1,11 @@
+{
+  "name": "SCENVY",
+  "description": "Turn every place into a scrollable experience with TikTok-style vertical reels for hospitality venues.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
