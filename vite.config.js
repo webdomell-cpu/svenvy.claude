@@ -1,12 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import aiGenerateHandler from './api/ai/generate.js'
-import analyticsHandler from './api/analytics.js'
-import contactHandler from './api/contact.js'
-import locationsHandler from './api/locations.js'
-import reelsHandler from './api/reels.js'
-import tenantsHandler from './api/tenants.js'
 
 function apiPlugin() {
   return {
@@ -44,12 +38,30 @@ function apiPlugin() {
 
         const pathname = url.pathname
         try {
-          if (pathname === '/api/ai/generate') return await aiGenerateHandler(req, res)
-          if (pathname === '/api/analytics') return await analyticsHandler(req, res)
-          if (pathname === '/api/contact') return await contactHandler(req, res)
-          if (pathname === '/api/locations') return await locationsHandler(req, res)
-          if (pathname === '/api/reels') return await reelsHandler(req, res)
-          if (pathname === '/api/tenants') return await tenantsHandler(req, res)
+          if (pathname === '/api/ai/generate') {
+            const { default: handler } = await import('./api/ai/generate.js')
+            return await handler(req, res)
+          }
+          if (pathname === '/api/analytics') {
+            const { default: handler } = await import('./api/analytics.js')
+            return await handler(req, res)
+          }
+          if (pathname === '/api/contact') {
+            const { default: handler } = await import('./api/contact.js')
+            return await handler(req, res)
+          }
+          if (pathname === '/api/locations') {
+            const { default: handler } = await import('./api/locations.js')
+            return await handler(req, res)
+          }
+          if (pathname === '/api/reels') {
+            const { default: handler } = await import('./api/reels.js')
+            return await handler(req, res)
+          }
+          if (pathname === '/api/tenants') {
+            const { default: handler } = await import('./api/tenants.js')
+            return await handler(req, res)
+          }
         } catch (err) {
           console.error(`Error in ${pathname}:`, err)
           return res.status(500).json({ error: err.message || 'Internal Server Error' })
@@ -72,6 +84,3 @@ export default defineConfig({
     allowedHosts: true,
   },
 })
-
-})
-
