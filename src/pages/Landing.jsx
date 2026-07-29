@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { C, grad } from '@/tokens'
 import { ScenvyLogoFull, ScenvyLogoIcon, ScenvyLogoBadge } from '@/components/ScenvyLogo'
-import { Check, Star, Play, Video, Zap, Sparkles, MapPin, BarChart2, QrCode, X, Send } from 'lucide-react'
+import { Check, Star, Play, Video, Zap, Sparkles, MapPin, BarChart2, QrCode, X, Send, Menu } from 'lucide-react'
+
+import flowSvg from '../scenvy_flow.svg'
+import menuSvg from '../scenvy_menu.svg'
+import boardSvg from '../scenvy_board.svg'
+import hostSvg from '../scenvy_host.svg'
+import storeSvg from '../scenvy_store.svg'
+import linkSvg from '../scenvy_link.svg'
+import magicSvg from '../scenvy_magic.svg'
 
 // i18n inline
 const T = {
@@ -167,6 +175,7 @@ export default function Landing(){
   const nav=useNavigate()
   const[lang,setLang]=useState(()=>localStorage.getItem('scenvy_lang')||(navigator.language?.startsWith('de')?'de':'en'))
   const[showContact,setShowContact]=useState(false)
+  const[mobileMenuOpen,setMobileMenuOpen]=useState(false)
   useEffect(()=>localStorage.setItem('scenvy_lang',lang),[lang])
   const t=T[lang]
   const icons=[<Video size={24} color={C.purple}/>,<Zap size={24} color={C.pink}/>,<Sparkles size={24} color={C.blue}/>,<MapPin size={24} color="#00E676"/>,<BarChart2 size={24} color="#FF9500"/>,<QrCode size={24} color={C.purple}/>]
@@ -174,45 +183,154 @@ export default function Landing(){
   const stepColors=[C.purple,C.pink,C.blue]
 
   return(
-    <div style={{background:C.bg,color:C.white,fontFamily:"'Inter','Segoe UI',sans-serif",overflowX:'hidden'}}>
-      <style>{`*{box-sizing:border-box} a{text-decoration:none} @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}`}</style>
+    <div style={{background:C.bg,color:C.white,fontFamily:"'Inter','Segoe UI',sans-serif",overflowX:'hidden',paddingBottom:70}}>
+      <style>{`
+        *{box-sizing:border-box} 
+        a{text-decoration:none} 
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+
+        @media (max-width: 900px) {
+          .desktop-nav-links { display: none !important; }
+          .desktop-nav-right { display: none !important; }
+          .mobile-hamburger-btn { display: flex !important; }
+          .hero-container { flex-direction: column !important; text-align: center !important; gap: 40px !important; }
+          .hero-text { display: flex; flex-direction: column; align-items: center; }
+          .hero-cta-btns { justify-content: center !important; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .stats-item { border-right: none !important; border-bottom: 1px solid ${C.border}; }
+          .features-grid { grid-template-columns: 1fr !important; }
+          .steps-grid { grid-template-columns: 1fr !important; }
+          .step-line { display: none !important; }
+          .demo-container { flex-direction: column !important; text-align: center !important; gap: 40px !important; }
+          .demo-text-list { display: inline-flex; flex-direction: column; align-items: flex-start; text-align: left; }
+          .demo-phones { justify-content: center !important; flex-wrap: wrap !important; }
+          .pricing-grid { grid-template-columns: 1fr !important; }
+          .pricing-card-pop { transform: none !important; }
+          .testimonials-grid { grid-template-columns: 1fr !important; }
+          .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; }
+          .mobile-bottom-bar { display: flex !important; }
+        }
+
+        @media (min-width: 901px) {
+          .mobile-hamburger-btn { display: none !important; }
+          .mobile-bottom-bar { display: none !important; }
+        }
+
+        @media (max-width: 500px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
+          .footer-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
       {/* NAV */}
-      <nav style={{position:'fixed',top:0,left:0,right:0,zIndex:100,height:66,background:'rgba(13,13,20,.95)',backdropFilter:'blur(20px)',borderBottom:`1px solid ${C.border}`,padding:'0 5%',display:'flex',alignItems:'center',gap:12}}>
-        <div style={{display:'flex',alignItems:'center',flex:1,cursor:'pointer'}} onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>
+      <nav style={{position:'fixed',top:0,left:0,right:0,zIndex:100,height:66,background:'rgba(13,13,20,.95)',backdropFilter:'blur(20px)',borderBottom:`1px solid ${C.border}`,padding:'0 5%',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',cursor:'pointer'}} onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>
           <ScenvyLogoFull height={34} />
         </div>
-        <div style={{display:'flex',gap:28,position:'absolute',left:'50%',transform:'translateX(-50%)'}}>
-          {[['features',t.nav.features],['how-it-works',t.nav.how],['pricing',t.nav.pricing],['demo',t.nav.demo]].map(([id,label])=>(
-            <a key={id} href={`#${id}`} style={{color:C.muted,fontSize:14,fontWeight:500}} onMouseEnter={e=>e.target.style.color=C.white} onMouseLeave={e=>e.target.style.color=C.muted}>{label}</a>
-          ))}
+
+        {/* Desktop Navigation Links */}
+        <div className="desktop-nav-links" style={{display:'flex',gap:16,alignItems:'center'}}>
+          <Link to="/reels-addon" style={{color:'#8B5CF6',fontSize:13,fontWeight:700,background:'rgba(139,92,246,0.12)',border:'1px solid rgba(139,92,246,0.3)',padding:'6px 12px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:6}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#8B5CF6'}}/> 🎬 SCENVY FLOW
+          </Link>
+          <Link to="/menu-addon" style={{color:'#F97316',fontSize:13,fontWeight:700,background:'rgba(249,115,22,0.12)',border:'1px solid rgba(249,115,22,0.3)',padding:'6px 12px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:6}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#F97316'}}/> 🍽️ SCENVY MENU
+          </Link>
+          <a href="#modules" style={{color:'#3B82F6',fontSize:13,fontWeight:700,background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',padding:'6px 12px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:6}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#3B82F6'}}/> 📺 SCENVY BOARD
+          </a>
+          <a href="#modules" style={{color:'#10B981',fontSize:13,fontWeight:700,background:'rgba(16,185,129,0.12)',border:'1px solid rgba(16,185,129,0.3)',padding:'6px 12px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:6}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#10B981'}}/> 🏨 SCENVY HOST
+          </a>
+          <a href="#store" style={{color:C.white,fontSize:13,fontWeight:700,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',padding:'6px 12px',borderRadius:20,display:'inline-flex',alignItems:'center',gap:6}}>
+            🛒 STORE & TAGS
+          </a>
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+
+        {/* Desktop Navigation Right Actions */}
+        <div className="desktop-nav-right" style={{display:'flex',gap:8,alignItems:'center'}}>
           <div style={{display:'flex',background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:3}}>
             {[['de','🇩🇪'],['en','🇬🇧']].map(([l,f])=><button key={l} onClick={()=>setLang(l)} style={{padding:'4px 8px',borderRadius:6,border:'none',cursor:'pointer',background:lang===l?C.purple:'transparent',fontSize:16,fontFamily:'inherit'}}>{f}</button>)}
           </div>
           <Btn variant="ghost" onClick={()=>nav('/auth')} style={{fontSize:14,padding:'9px 16px'}}>{t.nav.login}</Btn>
           <Btn onClick={()=>nav('/auth?mode=register')} style={{fontSize:14,padding:'9px 18px'}}>{t.nav.cta}</Btn>
         </div>
+
+        {/* Mobile Hamburger Button */}
+        <div className="mobile-hamburger-btn" style={{display:'none',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:2}}>
+            {[['de','🇩🇪'],['en','🇬🇧']].map(([l,f])=><button key={l} onClick={()=>setLang(l)} style={{padding:'3px 6px',borderRadius:5,border:'none',cursor:'pointer',background:lang===l?C.purple:'transparent',fontSize:14,fontFamily:'inherit'}}>{f}</button>)}
+          </div>
+          <button onClick={()=>setMobileMenuOpen(!mobileMenuOpen)} style={{background:'none',border:'none',color:C.white,cursor:'pointer',padding:6,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {mobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
+          </button>
+        </div>
       </nav>
 
+      {/* Mobile Menu Drawer */}
+      {mobileMenuOpen && (
+        <div style={{position:'fixed',top:66,left:0,right:0,bottom:0,background:'rgba(15,23,42,0.98)',backdropFilter:'blur(20px)',zIndex:995,padding:'24px 20px',display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
+          <Link to="/reels-addon" onClick={()=>setMobileMenuOpen(false)} style={{color:'#8B5CF6',fontSize:18,fontWeight:700,padding:'12px 0',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:10}}>
+            <span>🎬</span> SCENVY FLOW (flow.scenvy.de)
+          </Link>
+          <Link to="/menu-addon" onClick={()=>setMobileMenuOpen(false)} style={{color:'#F97316',fontSize:18,fontWeight:700,padding:'12px 0',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:10}}>
+            <span>🍽️</span> SCENVY MENU (menu.scenvy.de)
+          </Link>
+          <a href="#modules" onClick={()=>setMobileMenuOpen(false)} style={{color:'#3B82F6',fontSize:18,fontWeight:700,padding:'12px 0',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:10}}>
+            <span>📺</span> SCENVY BOARD (board.scenvy.de)
+          </a>
+          <a href="#modules" onClick={()=>setMobileMenuOpen(false)} style={{color:'#10B981',fontSize:18,fontWeight:700,padding:'12px 0',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:10}}>
+            <span>🏨</span> SCENVY HOST (host.scenvy.de)
+          </a>
+          <a href="#store" onClick={()=>setMobileMenuOpen(false)} style={{color:C.white,fontSize:18,fontWeight:700,padding:'12px 0',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:10}}>
+            <span>🛒</span> SCENVY STORE & TAGS (store.scenvy.de)
+          </a>
+          <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:20}}>
+            <Btn variant="outline" onClick={()=>{setMobileMenuOpen(false);nav('/auth')}} style={{width:'100%',textAlign:'center',padding:'12px 0'}}>{t.nav.login}</Btn>
+            <Btn onClick={()=>{setMobileMenuOpen(false);nav('/auth?mode=register')}} style={{width:'100%',textAlign:'center',padding:'12px 0'}}>{t.nav.cta}</Btn>
+          </div>
+        </div>
+      )}
+
       {/* HERO */}
-      <section style={{minHeight:'100vh',display:'flex',alignItems:'center',padding:'120px 5% 80px',position:'relative',overflow:'hidden'}}>
+      <section style={{minHeight:'85vh',display:'flex',alignItems:'center',padding:'110px 5% 40px',position:'relative',overflow:'hidden'}}>
         <Glow color={C.purple} x="-5%" y="30%" size={700}/><Glow color={C.pink} x="105%" y="60%" size={600}/>
-        <div style={{display:'flex',alignItems:'center',gap:60,width:'100%',maxWidth:1200,margin:'0 auto'}}>
-          <div style={{flex:1}}>
+        <div className="hero-container" style={{display:'flex',alignItems:'center',gap:60,width:'100%',maxWidth:1200,margin:'0 auto'}}>
+          <div className="hero-text" style={{flex:1}}>
             <div style={{display:'inline-flex',alignItems:'center',gap:8,background:`${C.purple}22`,border:`1px solid ${C.purple}44`,borderRadius:20,padding:'6px 14px',marginBottom:24}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:C.green}}/><span style={{fontSize:11,fontWeight:700,color:C.purple,letterSpacing:1}}>{t.kicker}</span>
+              <div style={{width:6,height:6,borderRadius:'50%',background:C.green}}/><span style={{fontSize:11,fontWeight:700,color:C.purple,letterSpacing:1}}>OPERATING SYSTEM FÜR PHYSISCHE ORTE</span>
             </div>
-            <h1 style={{fontSize:'clamp(32px,4.5vw,58px)',fontWeight:900,lineHeight:1.1,marginBottom:22}}>
-              {t.h1}{' '}<span style={{background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{t.scrollable}</span>{' '}{t.h1b}
+            <h1 style={{fontSize:'clamp(30px,4.5vw,58px)',fontWeight:900,lineHeight:1.1,marginBottom:22}}>
+              Ein Ökosystem.<br/>
+              <span style={{background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Eine Plattform.</span>
             </h1>
-            <p style={{fontSize:17,color:C.muted,lineHeight:1.7,marginBottom:36,maxWidth:480}}>{t.sub}</p>
-            <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:48}}>
+            <p style={{fontSize:16,color:C.muted,lineHeight:1.7,marginBottom:32,maxWidth:540}}>
+              SCENVY ist das modulare SaaS-Ökosystem für Hospitality, Retail & Digital Signage. Von mobilen Content-Feeds und KI-Speisekarten bis hin zu Signage CMS und Concierge-Services.
+            </p>
+
+            {/* SUBDOMAIN STRUCTURE PREVIEW WITH SVGS */}
+            <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:32,background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,padding:'12px 16px',borderRadius:16,alignItems:'center'}}>
+              {[
+                { name: 'app.scenvy.de', label: 'Main Portal', color: C.white, svg: magicSvg },
+                { name: 'flow.scenvy.de', label: 'Flow', color: '#8B5CF6', svg: flowSvg },
+                { name: 'menu.scenvy.de', label: 'Menu & Snap', color: '#F97316', svg: menuSvg },
+                { name: 'board.scenvy.de', label: 'Board', color: '#3B82F6', svg: boardSvg },
+                { name: 'host.scenvy.de', label: 'Host', color: '#10B981', svg: hostSvg },
+                { name: 'store.scenvy.de', label: 'Store', color: '#F43F5E', svg: storeSvg },
+                { name: 'link.scenvy.de', label: 'Link', color: '#6366F1', svg: linkSvg },
+              ].map((sub, i) => (
+                <div key={i} style={{fontSize:11,fontFamily:'monospace',padding:'6px 12px',borderRadius:10,background:'rgba(255,255,255,0.05)',border:`1px solid ${sub.color}44`,color:sub.color,fontWeight:600,display:'flex',alignItems:'center',gap:8}}>
+                  <img src={sub.svg} alt={sub.name} style={{width:20,height:20,borderRadius:4}} />
+                  {sub.name}
+                </div>
+              ))}
+            </div>
+
+            <div className="hero-cta-btns" style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:36}}>
               <Btn onClick={()=>nav('/auth?mode=register')}>{t.cta1}</Btn>
               <Btn variant="outline" onClick={()=>nav('/l/demo')} style={{display:'flex',alignItems:'center',gap:8}}><Play size={14} fill={C.white}/>{t.cta2}</Btn>
             </div>
-            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <div style={{display:'flex',gap:6,alignItems:'center',justifyContent:'inherit'}}>
               {[...Array(5)].map((_,i)=><Star key={i} size={14} fill="#FF9500" color="#FF9500"/>)}
               <span style={{fontSize:13,color:C.muted,marginLeft:8}}>{t.trust}</span>
             </div>
@@ -225,26 +343,231 @@ export default function Landing(){
 
       {/* STATS */}
       <section style={{padding:'0 5%'}}>
-        <div style={{maxWidth:1200,margin:'0 auto',background:C.card,borderRadius:20,border:`1px solid ${C.border}`,display:'grid',gridTemplateColumns:'repeat(4,1fr)'}}>
+        <div className="stats-grid" style={{maxWidth:1200,margin:'0 auto',background:C.card,borderRadius:20,border:`1px solid ${C.border}`,display:'grid',gridTemplateColumns:'repeat(4,1fr)'}}>
           {t.stats.map((s,i)=>(
-            <div key={i} style={{padding:'32px 24px',textAlign:'center',borderRight:i<3?`1px solid ${C.border}`:'none'}}>
-              <div style={{fontSize:38,fontWeight:900,background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:6}}>{s.v}</div>
+            <div key={i} className="stats-item" style={{padding:'28px 20px',textAlign:'center',borderRight:i<3?`1px solid ${C.border}`:'none'}}>
+              <div style={{fontSize:36,fontWeight:900,background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:6}}>{s.v}</div>
               <div style={{fontSize:13,color:C.muted}}>{s.l}</div>
             </div>
           ))}
         </div>
       </section>
 
+      {/* MODULES & ROADMAP SECTION */}
+      <section id="modules" style={{padding:'80px 5%',position:'relative'}}>
+        <Glow color="#8B5CF6" x="20%" y="30%" size={700}/>
+        <Glow color="#F97316" x="80%" y="70%" size={600}/>
+        <div style={{maxWidth:1200,margin:'0 auto'}}>
+          <div style={{textAlign:'center',marginBottom:48}}>
+            <div style={{fontSize:11,color:'#8B5CF6',fontWeight:800,letterSpacing:2,marginBottom:12}}>PRODUKT-ÖKOSYSTEM</div>
+            <h2 style={{fontSize:'clamp(28px, 3.5vw, 42px)',fontWeight:900,marginBottom:16}}>
+              Das <span style={{background:grad('#8B5CF6','#F97316'),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>SCENVY Modul-System</span>
+            </h2>
+            <p style={{fontSize:16,color:C.muted,maxWidth:650,margin:'0 auto'}}>
+              Aktiviere genau die Module, die deine Location benötigt. Ein zentrales Single Sign-On Dashboard für alle deine Apps.
+            </p>
+          </div>
+
+          {/* MASTER BLUEPRINT MODULES GRID */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(340px, 1fr))',gap:24,marginBottom:48}}>
+            
+            {/* MODULE 1: FLOW (Lila #8B5CF6) */}
+            <div style={{background:C.card,border:'2px solid rgba(139,92,246,0.6)',borderRadius:24,padding:32,position:'relative',display:'flex',flexDirection:'column',justify:'space-between',boxShadow:'0 10px 40px rgba(139,92,246,0.15)'}}>
+              <div>
+                <div style={{display:'flex',justify:'space-between',alignItems:'center',marginBottom:16}}>
+                  <span style={{fontSize:11,fontWeight:800,color:'#8B5CF6',background:'rgba(139,92,246,0.15)',padding:'4px 12px',borderRadius:20,border:'1px solid rgba(139,92,246,0.3)',letterSpacing:1}}>
+                    MODUL 01 · AKTIV (flow.scenvy.de)
+                  </span>
+                  <img src={flowSvg} alt="SCENVY Flow" style={{width:48,height:48,borderRadius:12,boxShadow:'0 4px 12px rgba(139,92,246,0.3)'}} />
+                </div>
+                <h3 style={{fontSize:24,fontWeight:900,color:C.white,marginBottom:10}}>SCENVY FLOW</h3>
+                <p style={{fontSize:14,color:C.muted,lineHeight:1.6,marginBottom:20}}>
+                  Content & Feed System für mobile Gäste-Erlebnisse. 9:16 Vertical Video Reels, Flash Sales, Countdown-Aktionen & KI Video Generation.
+                </p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:28}}>
+                  {['TikTok-artiger 9:16 Video Feed','Spontane Flash-Sales in <60 Sek.','Interaktive CTA Buttons & Countdown-Timer','Volle Scan & Conversion Analytics'].map((feat,idx)=>(
+                    <div key={idx} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:C.white}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',background:'rgba(139,92,246,0.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#8B5CF6',fontSize:10,fontWeight:900}}>✓</div>
+                      {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{display:'flex',gap:12}}>
+                <button onClick={()=>nav('/reels-addon')} style={{flex:1,padding:'12px 0',borderRadius:12,border:'1px solid rgba(139,92,246,0.5)',background:'rgba(139,92,246,0.15)',color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>
+                  Details ansehen →
+                </button>
+                <button onClick={()=>nav('/auth?mode=register')} style={{flex:1.2,padding:'12px 0',borderRadius:12,border:'none',background:'linear-gradient(135deg, #8B5CF6, #EC4899)',color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>
+                  Jetzt starten
+                </button>
+              </div>
+            </div>
+
+            {/* MODULE 2: MENU & SNAP (Orange #F97316) */}
+            <div style={{background:C.card,border:'2px solid rgba(249,115,22,0.6)',borderRadius:24,padding:32,position:'relative',display:'flex',flexDirection:'column',justify:'space-between',boxShadow:'0 10px 40px rgba(249,115,22,0.15)'}}>
+              <div>
+                <div style={{display:'flex',justify:'space-between',alignItems:'center',marginBottom:16}}>
+                  <span style={{fontSize:11,fontWeight:800,color:'#F97316',background:'rgba(249,115,22,0.15)',padding:'4px 12px',borderRadius:20,border:'1px solid rgba(249,115,22,0.3)',letterSpacing:1}}>
+                    MODUL 02 · AKTIV (menu.scenvy.de)
+                  </span>
+                  <img src={menuSvg} alt="SCENVY Menu" style={{width:48,height:48,borderRadius:12,boxShadow:'0 4px 12px rgba(249,115,22,0.3)'}} />
+                </div>
+                <h3 style={{fontSize:24,fontWeight:900,color:C.white,marginBottom:6}}>SCENVY MENU</h3>
+                <div style={{fontSize:12,fontWeight:700,color:'#F97316',marginBottom:12,display:'flex',alignItems:'center',gap:4}}>
+                  <span>✨ Inklusive SCENVY SNAP (KI Import)</span>
+                </div>
+                <p style={{fontSize:14,color:C.muted,lineHeight:1.6,marginBottom:20}}>
+                  Digitale Speisekarten mit automatischer KI-Erkennung. PDF oder Foto hochladen — Kategorien, Produkte & Preise werden sofort ausgelesen.
+                </p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:28}}>
+                  {['SCENVY SNAP: PDF & Foto KI-Import','Interaktives Web-Menü & Food-Reels','Allergene, Tags & Kategorien','Druckfertige Tisch-QR Vorlagen'].map((feat,idx)=>(
+                    <div key={idx} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:C.white}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',background:'rgba(249,115,22,0.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#F97316',fontSize:10,fontWeight:900}}>✓</div>
+                      {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{display:'flex',gap:12}}>
+                <button onClick={()=>nav('/menu-addon')} style={{flex:1,padding:'12px 0',borderRadius:12,border:'1px solid rgba(249,115,22,0.5)',background:'rgba(249,115,22,0.15)',color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>
+                  Details ansehen →
+                </button>
+                <button onClick={()=>nav('/auth?mode=register')} style={{flex:1.2,padding:'12px 0',borderRadius:12,border:'none',background:'linear-gradient(135deg, #F97316, #8B5CF6)',color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>
+                  Jetzt starten
+                </button>
+              </div>
+            </div>
+
+            {/* MODULE 3: BOARD (Blau #3B82F6) */}
+            <div style={{background:C.card,border:'1px solid rgba(59,130,246,0.3)',borderRadius:24,padding:32,position:'relative',display:'flex',flexDirection:'column',justify:'space-between'}}>
+              <div>
+                <div style={{display:'flex',justify:'space-between',alignItems:'center',marginBottom:16}}>
+                  <span style={{fontSize:11,fontWeight:800,color:'#3B82F6',background:'rgba(59,130,246,0.15)',padding:'4px 12px',borderRadius:20,border:'1px solid rgba(59,130,246,0.3)',letterSpacing:1}}>
+                    MODUL 03 · IN VORBEREITUNG (board.scenvy.de)
+                  </span>
+                  <img src={boardSvg} alt="SCENVY Board" style={{width:48,height:48,borderRadius:12,boxShadow:'0 4px 12px rgba(59,130,246,0.3)'}} />
+                </div>
+                <h3 style={{fontSize:24,fontWeight:900,color:C.white,marginBottom:10}}>SCENVY BOARD</h3>
+                <p style={{fontSize:14,color:C.muted,lineHeight:1.6,marginBottom:20}}>
+                  Digital Signage CMS für Screens & TV-Displays. Steuere Bildschirme in Restaurants, Hotels und Retail mit dynamischen Playlists & Zeitplänen.
+                </p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:28}}>
+                  {['Multi-Screen CMS Verwaltung','Drag & Drop Playlist Builder','Zeitgesteuerte Inhalts-Steuerung','Hardware & Player Integration'].map((feat,idx)=>(
+                    <div key={idx} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:C.muted}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',background:'rgba(59,130,246,0.15)',display:'flex',alignItems:'center',justifyContent:'center',color:'#3B82F6',fontSize:10,fontWeight:900}}>•</div>
+                      {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button disabled style={{width:'100%',padding:'12px 0',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',background:'rgba(59,130,246,0.08)',color:'#3B82F6',fontWeight:700,fontSize:13,cursor:'not-allowed',textAlign:'center'}}>
+                Coming Q3 2026 (board.scenvy.de)
+              </button>
+            </div>
+
+            {/* MODULE 4: HOST (Grün #10B981) */}
+            <div style={{background:C.card,border:'1px solid rgba(16,185,129,0.3)',borderRadius:24,padding:32,position:'relative',display:'flex',flexDirection:'column',justify:'space-between'}}>
+              <div>
+                <div style={{display:'flex',justify:'space-between',alignItems:'center',marginBottom:16}}>
+                  <span style={{fontSize:11,fontWeight:800,color:'#10B981',background:'rgba(16,185,129,0.15)',padding:'4px 12px',borderRadius:20,border:'1px solid rgba(16,185,129,0.3)',letterSpacing:1}}>
+                    MODUL 04 · IN VORBEREITUNG (host.scenvy.de)
+                  </span>
+                  <img src={hostSvg} alt="SCENVY Host" style={{width:48,height:48,borderRadius:12,boxShadow:'0 4px 12px rgba(16,185,129,0.3)'}} />
+                </div>
+                <h3 style={{fontSize:24,fontWeight:900,color:C.white,marginBottom:10}}>SCENVY HOST</h3>
+                <p style={{fontSize:14,color:C.muted,lineHeight:1.6,marginBottom:20}}>
+                  Digital Concierge für Hotel & Gastronomie. Zimmerservice, Zusatzleistungen, Aktivitäts-Tipps & automatisierte Upsellings per Smartphone.
+                </p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:28}}>
+                  {['Digitaler Room Service & Bestellung','Gäste-Services & Hotel-Infos','Automatisierte Upselling Angebote','Direkter WhatsApp & Chat Kontakt'].map((feat,idx)=>(
+                    <div key={idx} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:C.muted}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',background:'rgba(16,185,129,0.15)',display:'flex',alignItems:'center',justifyContent:'center',color:'#10B981',fontSize:10,fontWeight:900}}>•</div>
+                      {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button disabled style={{width:'100%',padding:'12px 0',borderRadius:12,border:'1px solid rgba(16,185,129,0.3)',background:'rgba(16,185,129,0.08)',color:'#10B981',fontWeight:700,fontSize:13,cursor:'not-allowed',textAlign:'center'}}>
+                Coming Q4 2026 (host.scenvy.de)
+              </button>
+            </div>
+
+          </div>
+
+          {/* ALL 7 MODULE SVGS BRAND SHOWCASE GALLERY */}
+          <div style={{background:C.card,border:`1px solid ${C.purple}44`,borderRadius:24,padding:32,marginBottom:48}}>
+            <div style={{textAlign:'center',marginBottom:24}}>
+              <div style={{fontSize:11,fontWeight:800,color:C.purple,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>OFFIZIELLE MODUL-ASSEMENT BRANDING SVGS</div>
+              <h3 style={{fontSize:22,fontWeight:900,color:C.white}}>Die 7 Säulen des SCENVY Ökosystems</h3>
+            </div>
+            
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))',gap:16}}>
+              {[
+                { name: 'Flow', svg: flowSvg, sub: 'flow.scenvy.de', color: '#8B5CF6' },
+                { name: 'Menu', svg: menuSvg, sub: 'menu.scenvy.de', color: '#F97316' },
+                { name: 'Board', svg: boardSvg, sub: 'board.scenvy.de', color: '#3B82F6' },
+                { name: 'Host', svg: hostSvg, sub: 'host.scenvy.de', color: '#10B981' },
+                { name: 'Store', svg: storeSvg, sub: 'store.scenvy.de', color: '#F43F5E' },
+                { name: 'Link', svg: linkSvg, sub: 'link.scenvy.de', color: '#6366F1' },
+                { name: 'Magic AI', svg: magicSvg, sub: 'ai.scenvy.de', color: '#A855F7' },
+              ].map((m, idx) => (
+                <div key={idx} style={{background:C.bg,border:`1px solid ${m.color}33`,borderRadius:16,padding:16,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+                  <img src={m.svg} alt={m.name} style={{width:72,height:72,borderRadius:16,boxShadow:`0 6px 20px ${m.color}33`}} />
+                  <div style={{fontSize:13,fontWeight:800,color:C.white}}>{m.name}</div>
+                  <div style={{fontSize:10,fontFamily:'monospace',color:m.color,background:`${m.color}15`,padding:'2px 6px',borderRadius:6}}>{m.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* HARDWARE & STORE BANNER */}
+          <div id="store" style={{background:`${C.card}88`,border:`1px solid ${C.border}`,borderRadius:20,padding:32,display:'flex',flexDirection:'column',gap:20}}>
+            <div style={{display:'flex',justify:'space-between',alignItems:'center',flexWrap:'wrap',gap:16}}>
+              <div>
+                <div style={{fontSize:11,color:C.white,fontWeight:800,letterSpacing:1.5,marginBottom:6,textTransform:'uppercase',display:'flex',alignItems:'center',gap:8}}>
+                  <span>🛒 SCENVY STORE & TAGS</span>
+                  <span style={{background:'rgba(255,255,255,0.1)',fontSize:10,padding:'2px 8px',borderRadius:10}}>store.scenvy.de</span>
+                </div>
+                <h3 style={{fontSize:20,fontWeight:800,color:C.white}}>Physische Trigger & Digital Signage Hardware</h3>
+                <p style={{fontSize:13,color:C.muted,marginTop:4}}>Verbinde deine physischen Tische, Theken & Räume nahtlos mit deinen SCENVY Apps.</p>
+              </div>
+
+              <button onClick={()=>nav('/auth?mode=register')} style={{padding:'12px 24px',borderRadius:12,border:`1px solid ${C.border}`,background:C.card,color:C.white,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                Hardware Katalog anfragen →
+              </button>
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:16,marginTop:8}}>
+              {[
+                { title: '🧷 SCENVY TAGS (NFC & QR)', desc: 'Hochwertige Acryl Tischaufsteller & Metal-NFC Tags für blitzschnellen Kontakt.' },
+                { title: '📺 Digital Signage Displays', desc: 'Professionelle 4K Displays für den Dauerbetrieb in Gastronomie & Retail.' },
+                { title: '⚡ Signage Player Hardware', desc: 'Kompakte Plug-and-Play Mediaplayer für SCENVY BOARD.' }
+              ].map((item, idx) => (
+                <div key={idx} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:14,padding:16}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{item.title}</div>
+                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>{item.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* FEATURES */}
-      <section id="features" style={{padding:'100px 5%',position:'relative'}}>
+      <section id="features" style={{padding:'80px 5%',position:'relative'}}>
         <Glow color={C.purple} x="50%" y="50%" size={800}/>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:64}}>
+          <div style={{textAlign:'center',marginBottom:48}}>
             <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:12}}>{t.fKicker}</div>
-            <h2 style={{fontSize:42,fontWeight:900,marginBottom:16}}>{t.fTitle}</h2>
-            <p style={{fontSize:17,color:C.muted,maxWidth:500,margin:'0 auto'}}>{t.fSub}</p>
+            <h2 style={{fontSize:'clamp(28px, 3.5vw, 42px)',fontWeight:900,marginBottom:16}}>{t.fTitle}</h2>
+            <p style={{fontSize:16,color:C.muted,maxWidth:500,margin:'0 auto'}}>{t.fSub}</p>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
+          <div className="features-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
             {t.features.map((f,i)=>(
               <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:28,transition:'border-color .2s,transform .2s'}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=fcolors[i];e.currentTarget.style.transform='translateY(-3px)'}}
@@ -259,15 +582,15 @@ export default function Landing(){
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" style={{padding:'100px 5%',background:`${C.card}66`}}>
+      <section id="how-it-works" style={{padding:'80px 5%',background:`${C.card}66`}}>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:64}}>
+          <div style={{textAlign:'center',marginBottom:48}}>
             <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:12}}>{t.howKicker}</div>
-            <h2 style={{fontSize:42,fontWeight:900,marginBottom:16}}>{t.howTitle}</h2>
-            <p style={{fontSize:17,color:C.muted}}>{t.howSub}</p>
+            <h2 style={{fontSize:'clamp(28px, 3.5vw, 42px)',fontWeight:900,marginBottom:16}}>{t.howTitle}</h2>
+            <p style={{fontSize:16,color:C.muted}}>{t.howSub}</p>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:24,position:'relative'}}>
-            <div style={{position:'absolute',top:56,left:'16.67%',right:'16.67%',height:1,background:`linear-gradient(90deg,${C.purple},${C.blue})`,opacity:.3}}/>
+          <div className="steps-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:24,position:'relative'}}>
+            <div className="step-line" style={{position:'absolute',top:56,left:'16.67%',right:'16.67%',height:1,background:`linear-gradient(90deg,${C.purple},${C.blue})`,opacity:.3}}/>
             {t.steps.map((s,i)=>(
               <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:32}}>
                 <div style={{width:56,height:56,borderRadius:'50%',background:grad(stepColors[i],i===2?C.purple:C.pink),display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,fontWeight:900,marginBottom:24,boxShadow:`0 4px 20px ${stepColors[i]}44`}}>{s.n}</div>
@@ -280,50 +603,52 @@ export default function Landing(){
       </section>
 
       {/* DEMO */}
-      <section id="demo" style={{padding:'100px 5%',position:'relative',overflow:'hidden'}}>
+      <section id="demo" style={{padding:'80px 5%',position:'relative',overflow:'hidden'}}>
         <Glow color={C.pink} x="20%" y="50%" size={700}/>
-        <div style={{maxWidth:1200,margin:'0 auto',display:'flex',alignItems:'center',gap:80}}>
+        <div className="demo-container" style={{maxWidth:1200,margin:'0 auto',display:'flex',alignItems:'center',gap:60}}>
           <div style={{flex:1}}>
             <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:12}}>LIVE DEMO</div>
-            <h2 style={{fontSize:42,fontWeight:900,marginBottom:20,lineHeight:1.1}}>
+            <h2 style={{fontSize:'clamp(28px, 3.5vw, 42px)',fontWeight:900,marginBottom:20,lineHeight:1.15}}>
               {lang==='de'?'Was deine Gäste':'What your guests'}<br/>
               <span style={{background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{lang==='de'?'sehen werden.':'will see.'}</span>
             </h2>
-            {(lang==='de'?['Kein App-Download nötig','Läuft auf jedem Smartphone','Lädt in unter 1 Sekunde','Vollständig gebrandet']:['No app download needed','Works on any smartphone','Loads in under 1 second','Fully branded']).map((f,i)=>(
-              <div key={i} style={{display:'flex',gap:12,alignItems:'center',marginBottom:14}}>
-                <div style={{width:20,height:20,borderRadius:'50%',background:`${C.green}22`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Check size={12} color="#00E676"/></div>
-                <span style={{fontSize:14,color:C.muted}}>{f}</span>
-              </div>
-            ))}
-            <Btn onClick={()=>nav('/l/demo')} style={{marginTop:24}}>{lang==='de'?'Live-Demo ausprobieren →':'Try live demo →'}</Btn>
+            <div className="demo-text-list">
+              {(lang==='de'?['Kein App-Download nötig','Läuft auf jedem Smartphone','Lädt in unter 1 Sekunde','Vollständig gebrandet']:['No app download needed','Works on any smartphone','Loads in under 1 second','Fully branded']).map((f,i)=>(
+                <div key={i} style={{display:'flex',gap:12,alignItems:'center',marginBottom:14}}>
+                  <div style={{width:20,height:20,borderRadius:'50%',background:`${C.green}22`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Check size={12} color="#00E676"/></div>
+                  <span style={{fontSize:14,color:C.muted}}>{f}</span>
+                </div>
+              ))}
+            </div>
+            <Btn onClick={()=>nav('/l/demo')} style={{marginTop:20}}>{lang==='de'?'Live-Demo ausprobieren →':'Try live demo →'}</Btn>
           </div>
-          <div style={{display:'flex',gap:14,alignItems:'center',flexShrink:0}}>
-            {[0,1,2].map(o=><div key={o} style={{transform:o===1?'scale(1.06)':'none',marginTop:o===1?0:24}}><Phone size="small"/></div>)}
+          <div className="demo-phones" style={{display:'flex',gap:14,alignItems:'center',flexShrink:0}}>
+            {[0,1,2].map(o=><div key={o} style={{transform:o===1?'scale(1.06)':'none',marginTop:o===1?0:20}}><Phone size="small"/></div>)}
           </div>
         </div>
       </section>
 
       {/* PRICING */}
-      <section id="pricing" style={{padding:'100px 5%',position:'relative'}}>
+      <section id="pricing" style={{padding:'80px 5%',position:'relative'}}>
         <Glow color={C.blue} x="80%" y="40%" size={600}/>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:64}}>
+          <div style={{textAlign:'center',marginBottom:48}}>
             <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:12}}>{t.pKicker}</div>
-            <h2 style={{fontSize:42,fontWeight:900,marginBottom:16}}>{t.pTitle}</h2>
-            <p style={{fontSize:17,color:C.muted}}>{t.pSub}</p>
+            <h2 style={{fontSize:'clamp(28px, 3.5vw, 42px)',fontWeight:900,marginBottom:16}}>{t.pTitle}</h2>
+            <p style={{fontSize:16,color:C.muted}}>{t.pSub}</p>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
+          <div className="pricing-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
             {t.plans.map((p,i)=>(
-              <div key={i} style={{background:C.card,border:`2px solid ${p.pop?p.color:C.border}`,borderRadius:24,padding:'36px 28px',position:'relative',transform:p.pop?'scale(1.03)':'none',boxShadow:p.pop?`0 0 40px ${p.color}33`:'none'}}>
+              <div key={i} className={p.pop?'pricing-card-pop':''} style={{background:C.card,border:`2px solid ${p.pop?p.color:C.border}`,borderRadius:24,padding:'32px 24px',position:'relative',transform:p.pop?'scale(1.03)':'none',boxShadow:p.pop?`0 0 40px ${p.color}33`:'none'}}>
                 {p.pop&&<div style={{position:'absolute',top:-14,left:'50%',transform:'translateX(-50%)',background:grad(C.purple,C.pink),borderRadius:20,padding:'5px 16px',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>⭐ Most Popular</div>}
                 <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>{p.n}</div>
                 <div style={{marginBottom:8}}>
                   <span style={{fontSize:p.p==='Individuell'||p.p==='Individual'?28:42,fontWeight:900,color:p.color}}>{p.p}</span>
                   {p.per&&<span style={{fontSize:14,color:C.muted}}> {p.per}</span>}
                 </div>
-                <div style={{fontSize:13,color:C.muted,marginBottom:28,lineHeight:1.5}}>{p.d}</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:24,lineHeight:1.5}}>{p.d}</div>
                 <button onClick={p.contact?()=>setShowContact(true):()=>nav('/auth?mode=register')}
-                  style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',cursor:'pointer',background:p.pop?grad(C.purple,C.pink):`${p.color}22`,color:p.pop?C.white:p.color,fontWeight:700,fontSize:14,fontFamily:'inherit',marginBottom:28,boxShadow:p.pop?`0 4px 20px ${C.purple}44`:'none'}}>
+                  style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',cursor:'pointer',background:p.pop?grad(C.purple,C.pink):`${p.color}22`,color:p.pop?C.white:p.color,fontWeight:700,fontSize:14,fontFamily:'inherit',marginBottom:24,boxShadow:p.pop?`0 4px 20px ${C.purple}44`:'none'}}>
                   {p.cta} →
                 </button>
                 <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -343,15 +668,15 @@ export default function Landing(){
       {/* TESTIMONIALS */}
       <section style={{padding:'80px 5%',background:`${C.card}44`}}>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
-          <div style={{textAlign:'center',marginBottom:52}}>
+          <div style={{textAlign:'center',marginBottom:48}}>
             <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:12}}>{t.tKicker}</div>
-            <h2 style={{fontSize:36,fontWeight:900}}>{t.tTitle}</h2>
+            <h2 style={{fontSize:'clamp(26px, 3vw, 36px)',fontWeight:900}}>{t.tTitle}</h2>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
+          <div className="testimonials-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
             {t.testimonials.map((q,i)=>(
               <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:28}}>
                 <div style={{display:'flex',gap:2,marginBottom:18}}>{[...Array(5)].map((_,j)=><Star key={j} size={14} fill="#FF9500" color="#FF9500"/>)}</div>
-                <p style={{fontSize:15,color:C.muted,lineHeight:1.7,marginBottom:24,fontStyle:'italic'}}>"{q.q}"</p>
+                <p style={{fontSize:14,color:C.muted,lineHeight:1.7,marginBottom:24,fontStyle:'italic'}}>"{q.q}"</p>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:grad(C.purple,C.pink),display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:16}}>{q.n[0]}</div>
                   <div><div style={{fontSize:14,fontWeight:700}}>{q.n}</div><div style={{fontSize:12,color:C.muted}}>{q.r}</div></div>
@@ -363,15 +688,15 @@ export default function Landing(){
       </section>
 
       {/* FINAL CTA */}
-      <section style={{padding:'100px 5%',position:'relative',overflow:'hidden'}}>
+      <section style={{padding:'80px 5%',position:'relative',overflow:'hidden'}}>
         <Glow color={C.purple} x="30%" y="50%" size={700}/><Glow color={C.pink} x="70%" y="50%" size={600}/>
         <div style={{maxWidth:700,margin:'0 auto',textAlign:'center',position:'relative'}}>
           <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:16}}>{t.ctaKicker}</div>
-          <h2 style={{fontSize:'clamp(30px,5vw,52px)',fontWeight:900,lineHeight:1.15,marginBottom:20}}>
+          <h2 style={{fontSize:'clamp(28px,4.5vw,52px)',fontWeight:900,lineHeight:1.15,marginBottom:20}}>
             {t.ctaT1}{' '}<span style={{background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{t.ctaT2}</span>
           </h2>
-          <p style={{fontSize:17,color:C.muted,marginBottom:40}}>{t.ctaSub}</p>
-          <Btn onClick={()=>nav('/auth?mode=register')} style={{fontSize:17,padding:'16px 40px'}}>{t.ctaBtn}</Btn>
+          <p style={{fontSize:16,color:C.muted,marginBottom:36}}>{t.ctaSub}</p>
+          <Btn onClick={()=>nav('/auth?mode=register')} style={{fontSize:16,padding:'16px 36px'}}>{t.ctaBtn}</Btn>
           <div style={{marginTop:16,fontSize:13,color:C.dim}}>{t.ctaNote}</div>
         </div>
       </section>
@@ -379,7 +704,7 @@ export default function Landing(){
       {/* FOOTER */}
       <footer style={{padding:'60px 5% 32px',borderTop:`1px solid ${C.border}`}}>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:40,marginBottom:48}}>
+          <div className="footer-grid" style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:40,marginBottom:48}}>
             <div>
               <div style={{marginBottom:16}}>
                 <ScenvyLogoFull height={32} />
@@ -394,14 +719,25 @@ export default function Landing(){
               </div>
             ))}
           </div>
-          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:24,display:'flex',justifyContent:'space-between'}}>
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:24,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
             <div style={{fontSize:13,color:C.dim}}>{t.footerCopy}</div>
             <div style={{fontSize:13,color:C.dim}}>{t.footerMade}</div>
           </div>
         </div>
       </footer>
 
+      {/* STICKY MOBILE BOTTOM CTA BAR */}
+      <div className="mobile-bottom-bar" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,zIndex:990,background:'rgba(13,13,20,0.95)',backdropFilter:'blur(16px)',borderTop:`1px solid ${C.border}`,padding:'10px 16px',gap:10,alignItems:'center',boxShadow:'0 -10px 30px rgba(0,0,0,0.8)'}}>
+        <button onClick={()=>nav('/auth')} style={{flex:1,padding:'12px 0',borderRadius:10,border:`1px solid ${C.border}`,background:C.card,color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit',textAlign:'center'}}>
+          {t.nav.login}
+        </button>
+        <button onClick={()=>nav('/auth?mode=register')} style={{flex:1.5,padding:'12px 0',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit',textAlign:'center',boxShadow:`0 4px 15px ${C.purple}55`}}>
+          {t.nav.cta}
+        </button>
+      </div>
+
       {showContact&&<ContactModal onClose={()=>setShowContact(false)} lang={lang}/>}
     </div>
   )
 }
+

@@ -42,6 +42,10 @@ function apiPlugin() {
             const { default: handler } = await import('./api/ai/generate.js')
             return await handler(req, res)
           }
+          if (pathname === '/api/ai/parse-menu') {
+            const { default: handler } = await import('./api/ai/parse-menu.js')
+            return await handler(req, res)
+          }
           if (pathname === '/api/analytics') {
             const { default: handler } = await import('./api/analytics.js')
             return await handler(req, res)

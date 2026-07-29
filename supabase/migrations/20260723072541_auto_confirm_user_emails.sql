@@ -22,17 +22,23 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
 declare
   new_tenant_id uuid;
 begin
-  -- Auto-confirm email so signUp returns a session immediately
-  UPDATE auth.users SET email_confirmed_at = now() WHERE id = NEW.id;
+  -- Safely auto-confirm email if possible
+  begin
+    UPDATE auth.users SET email_confirmed_at = now() WHERE id = NEW.id AND email_confirmed_at IS NULL;
+  exception when others then
+    -- ignore update errors to prevent blocking signup
+    null;
+  end;
 
   if new.email = 'admin@scenvy.de' then
     insert into profiles (id, tenant_id, full_name, email, role)
-    values (new.id, null, 'Superadmin', new.email, 'admin');
+    values (new.id, null, 'Superadmin', new.email, 'admin')
+    on conflict (id) do update set role = 'admin';
   else
     insert into tenants (name, plan, status)
     values (
@@ -49,9 +55,13 @@ begin
       coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)),
       new.email,
       'tenant_owner'
-    );
+    )
+    on conflict (id) do nothing;
   end if;
 
+  return new;
+exception when others then
+  -- Return new to allow user creation even if profile trigger fails
   return new;
 end;
 $$;

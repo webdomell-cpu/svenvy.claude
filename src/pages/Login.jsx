@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../lib/AuthContext'
 import { C, grad } from '../tokens.js'
 import { Eye, EyeOff } from 'lucide-react'
 
 const DEMO_ACCOUNTS = [
-  { email:'admin@scenvy.de', password:'admin123', role:'admin',  name:'Dominik',     venue:'SCENVY HQ'        },
-  { email:'venue@scenvy.de', password:'venue123', role:'tenant', name:'Marina Group', venue:'The Marina Group' },
-  { email:'test@scenvy.de',  password:'test123', role:'tenant', name:'Test User',   venue:'Test Venue'       },
+  { id: 'fc999240-f01f-4054-8e82-6c4b0875e62c', email:'admin@scenvy.de', password:'admin123', role:'admin',  name:'Dominik',     venue:'SCENVY HQ',         tenant_id: 'a0000000-0000-0000-0000-000000000001' },
+  { id: '98f577a6-7d9a-4b15-9e2c-c86b9648e9e8', email:'venue@scenvy.de', password:'venue123', role:'tenant_owner', name:'Marina Group', venue:'The Marina Group',  tenant_id: 'b0000000-0000-0000-0000-000000000002' },
 ]
 
 function getUsers()        { try { return JSON.parse(localStorage.getItem('scenvy_users')||'[]') } catch { return [] } }
@@ -51,6 +51,7 @@ function SubmitBtn({ loading, onClick, label }) {
 
 export default function Login() {
   const nav = useNavigate()
+  const { login, signup } = useAuth()
   const [params] = useSearchParams()
   const [mode,   setMode]   = useState(params.get('mode')==='register'?'register':'login')
   const [showPw, setShowPw] = useState(false)
@@ -67,27 +68,28 @@ export default function Login() {
 
   const doLogin = async () => {
     setError(''); setLoading(true)
-    await new Promise(r=>setTimeout(r,500))
-    const all = [...DEMO_ACCOUNTS, ...getUsers()]
-    const user = all.find(u=>u.email===email&&u.password===pw)
-    if (user) { localStorage.setItem('scenvy_user',JSON.stringify(user)); nav(user.role==='admin'?'/admin':'/dashboard') }
-    else setError(isDE?'E-Mail oder Passwort falsch.':'Invalid email or password.')
-    setLoading(false)
+    const { user, error: e } = await login(email, pw)
+    if (e || !user) {
+      setError(isDE?'E-Mail oder Passwort falsch.':'Invalid email or password.')
+      setLoading(false)
+      return
+    }
+    nav('/dashboard')
   }
 
   const doRegister = async () => {
     setError(''); setLoading(true)
-    await new Promise(r=>setTimeout(r,500))
     if (!rName||!rEmail||!rPw) { setError(isDE?'Bitte alle Pflichtfelder ausfüllen.':'Please fill in all required fields.'); setLoading(false); return }
     if (rPw!==rPw2)            { setError(isDE?'Passwörter stimmen nicht überein.':'Passwords do not match.'); setLoading(false); return }
     if (rPw.length<6)          { setError(isDE?'Passwort mindestens 6 Zeichen.':'Password must be at least 6 characters.'); setLoading(false); return }
-    const all=[...DEMO_ACCOUNTS,...getUsers()]
-    if (all.find(u=>u.email===rEmail)) { setError(isDE?'Diese E-Mail ist bereits registriert.':'This email is already registered.'); setLoading(false); return }
-    const newUser = { email:rEmail, password:rPw, role:'tenant', name:rName, venue:rVenue||rName }
-    const users=getUsers(); users.push(newUser); saveUsers(users)
-    localStorage.setItem('scenvy_user',JSON.stringify(newUser))
+
+    const { user, error: e } = await signup(rEmail, rPw, rName, rVenue)
+    if (e) {
+      setError(e.message || (isDE ? 'Registrierung fehlgeschlagen.' : 'Registration failed.'))
+      setLoading(false)
+      return
+    }
     nav('/dashboard')
-    setLoading(false)
   }
 
   return (

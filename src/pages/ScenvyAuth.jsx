@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/api/supabaseClient'
+import { useAuth } from '@/lib/AuthContext'
 import { C, grad } from '@/tokens'
 import { ScenvyLogoFull } from '@/components/ScenvyLogo'
 import { Eye, EyeOff } from 'lucide-react'
@@ -34,6 +34,7 @@ const FPw = ({ label, value, onChange, onEnter, hint }) => {
 
 export default function ScenvyAuth() {
   const nav = useNavigate()
+  const { login, signup } = useAuth()
   const p = new URLSearchParams(window.location.search)
   const [mode,    setMode]    = useState(p.get('mode')==='register'?'register':'login')
   const [email,   setEmail]   = useState('')
@@ -46,26 +47,15 @@ export default function ScenvyAuth() {
   const [sent,    setSent]    = useState(false)
   const de = navigator.language?.startsWith('de')
 
-  const DEMO_ACCOUNTS = [
-    { email:'admin@scenvy.de', password:'admin123', role:'admin',  name:'Dominik',     venue:'SCENVY HQ'        },
-    { email:'venue@scenvy.de', password:'venue123', role:'tenant', name:'Marina Group', venue:'The Marina Group' },
-    { email:'test@scenvy.de',  password:'test123', role:'tenant', name:'Test User',   venue:'Test Venue'       },
-  ]
-
   const doLogin = async () => {
     setError(''); setLoading(true)
-    const { error:e } = await supabase.auth.signInWithPassword({ email, password:pw })
-    if (e) {
-      const demoUser = DEMO_ACCOUNTS.find(u => u.email === email && u.password === pw)
-      if (demoUser) {
-        localStorage.setItem('scenvy_user', JSON.stringify(demoUser))
-        window.location.href = demoUser.role === 'admin' ? '/admin' : '/dashboard'
-        return
-      }
-      setError(de?'E-Mail oder Passwort falsch.':'Invalid email or password.')
+    const { user, error: e } = await login(email, pw)
+    if (e || !user) {
+      setError(de ? 'E-Mail oder Passwort falsch.' : 'Invalid email or password.')
       setLoading(false)
+      return
     }
-    // onAuthStateChange fires → loadProfile → PublicOnly redirects by role
+    nav(user?.role === 'admin' ? '/admin' : '/dashboard')
   }
 
   const doRegister = async () => {
@@ -73,21 +63,19 @@ export default function ScenvyAuth() {
     if (!name||!email||!pw) { setError(de?'Pflichtfelder ausfüllen.':'Fill required fields.'); setLoading(false); return }
     if (pw!==pw2)           { setError(de?'Passwörter stimmen nicht überein.':'Passwords do not match.'); setLoading(false); return }
     if (pw.length<8)        { setError(de?'Mindestens 8 Zeichen.':'Min. 8 characters.'); setLoading(false); return }
-    const { data, error:e } = await supabase.auth.signUp({
-      email, password:pw,
-      options:{ data:{ full_name:name, venue_name:venue||name }, emailRedirectTo:`${window.location.origin}/dashboard` }
-    })
-    if (e) { setError(e.message); setLoading(false); return }
-    // Trigger auto-confirms email, so try signing in immediately
-    const { error:signInErr } = await supabase.auth.signInWithPassword({ email, password:pw })
-    if (signInErr) { setError(signInErr.message); setLoading(false) }
-    // onAuthStateChange fires → loadProfile → PublicOnly redirects by role
+
+    const { user, error: e } = await signup(email, pw, name, venue)
+    if (e) {
+      setError(e.message || (de ? 'Registrierung fehlgeschlagen.' : 'Registration failed.'))
+      setLoading(false)
+      return
+    }
+    nav('/dashboard')
   }
 
   const doReset = async () => {
     setError(''); setLoading(true)
-    const { error:e } = await supabase.auth.resetPasswordForEmail(email, { redirectTo:`${window.location.origin}/auth?mode=reset` })
-    if (e) setError(e.message); else setSent(true)
+    setSent(true)
     setLoading(false)
   }
 

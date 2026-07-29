@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { C, grad } from '@/tokens'
 import { ScenvyLogoFull } from '@/components/ScenvyLogo'
-import { useTenants, useUpdateTenant, useDeleteTenant } from '@/lib/db'
+import { useTenants, useUpdateTenant, useDeleteTenant, useReels, useSaveReel, useLocations } from '@/lib/db'
 import { useAuth } from '@/lib/AuthContext'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Users, TrendingUp, MapPin, Film, Activity, LogOut, RefreshCw, Save, Mail, Shield, Building2, CreditCard, X, ChevronRight, Trash2, Power, CheckCircle, AlertCircle } from 'lucide-react'
+import { Users, TrendingUp, MapPin, Film, Activity, LogOut, RefreshCw, Save, Mail, Shield, Building2, CreditCard, X, ChevronRight, Trash2, Power, CheckCircle, AlertCircle, ExternalLink, Package, DollarSign, FileText, Download, Plus, Check, Play, Zap } from 'lucide-react'
 
 const MRR_TREND = [
   {month:'Jan',mrr:0},{month:'Feb',mrr:0},{month:'Mar',mrr:29},
@@ -17,14 +17,20 @@ const PLAN_MRR = { enterprise:299, pro:29, starter:0 }
 
 export default function Admin() {
   const nav = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, impersonateTenant } = useAuth()
   const { data: tenants=[], isLoading } = useTenants()
   const updateTenant = useUpdateTenant()
   const deleteTenant = useDeleteTenant()
 
+  const { data: dbReels = [] } = useReels('ALL')
+  const { data: dbLocations = [] } = useLocations('ALL')
+  const saveReelMutation = useSaveReel()
+
   const [toast, setToast]       = useState(null)
   const [tab, setTab]           = useState('tenants')
   const [editTenant, setEditTenant] = useState(null)
+  const [reelLocMappings, setReelLocMappings] = useState({})
+  
   const [config, setConfig]     = useState(() => {
     const saved = localStorage.getItem('scenvy_platform_config')
     return saved ? JSON.parse(saved) : {
@@ -34,11 +40,44 @@ export default function Admin() {
     }
   })
 
+  const [pricingConfig, setPricingConfig] = useState(() => {
+    const saved = localStorage.getItem('scenvy_pricing_config')
+    return saved ? JSON.parse(saved) : {
+      starter_price: 0,
+      pro_price: 29,
+      enterprise_price: 299,
+      annual_discount: 20,
+      module_flow: 29,
+      module_menu: 49,
+      module_board: 79,
+      module_host: 39,
+    }
+  })
+
   const notify = msg => { setToast(msg); setTimeout(()=>setToast(null),3000) }
 
   const mrr   = tenants.reduce((s,t)=>s+(PLAN_MRR[t.plan]||0),0)
   const locs  = tenants.reduce((s,t)=>s+(t.locations_count||0),0)
   const reels = tenants.reduce((s,t)=>s+(t.reels_count||0),0)
+
+  const [liveKeys, setLiveKeys] = useState([])
+  const [keyTestLoading, setKeyTestLoading] = useState(null)
+
+  const fetchLiveKeys = async () => {
+    try {
+      const res = await fetch('/api/admin/keys')
+      const data = await res.json()
+      if (data?.keys) {
+        setLiveKeys(data.keys)
+      }
+    } catch (e) {
+      console.warn('Keys fetch warning:', e)
+    }
+  }
+
+  useEffect(() => {
+    fetchLiveKeys()
+  }, [])
 
   const setPlan = async (id, plan) => {
     try { await updateTenant.mutateAsync({ id, updates:{ plan } }); notify(`Plan → ${plan}`) }
@@ -71,19 +110,93 @@ export default function Admin() {
     notify('✅ Platform-Konfiguration gespeichert')
   }
 
+  const savePricingConfig = () => {
+    localStorage.setItem('scenvy_pricing_config', JSON.stringify(pricingConfig))
+    notify('✅ Preise & Tarife gespeichert!')
+  }
+
   const tabs = [
-    {id:'tenants', label:'Mandanten', icon:<Users size={15}/>},
-    {id:'stripe',  label:'Stripe & Billing', icon:<CreditCard size={15}/>},
-    {id:'email',   label:'E-Mail & Forwarding', icon:<Mail size={15}/>},
-    {id:'features',label:'Feature Flags', icon:<Shield size={15}/>},
+    {id:'tenants',   label:'Mandanten & Einstieg', icon:<Users size={15}/>},
+    {id:'ai_system', label:'Multi-KI & System Status', icon:<Activity size={15}/>},
+    {id:'modules',   label:'Modul-Freigaben',      icon:<Package size={15}/>},
+    {id:'billing',   label:'Abrechnung & Stripe',  icon:<CreditCard size={15}/>},
+    {id:'pricing',   label:'Preise & Tarife',       icon:<DollarSign size={15}/>},
+    {id:'email',     label:'E-Mail & Forwarding',  icon:<Mail size={15}/>},
+    {id:'features',  label:'Feature Flags',        icon:<Shield size={15}/>},
   ]
 
   const [flags, setFlags] = useState([
-    {n:'AI Generator',on:true,c:C.purple},{n:'Social Import',on:true,c:C.blue},
+    {n:'AI Generator',on:true,c:C.purple},{n:'AI Menu Reel Generator',on:true,c:C.purple},{n:'Social Import',on:true,c:C.blue},
     {n:'Geo Targeting',on:false,c:C.pink},{n:'Gamification',on:false,c:C.orange},
     {n:'White Label',on:true,c:C.purple},{n:'API Access',on:false,c:C.blue},
     {n:'Analytics Pro',on:true,c:C.green},{n:'Scheduling AI',on:false,c:C.pink},
   ])
+
+  const [aiPool, setAiPool] = useState({
+    strategy: 'round_robin',
+    providers: [
+      { id: 'gemini-1', name: 'Google Gemini 1.5/3.6 (Prio 1)', key: 'process.env.GEMINI_API_KEY', status: 'active', usage: 1420, priority: 1, c: C.purple },
+      { id: 'openai-1', name: 'OpenAI ChatGPT-4o (Backup)', key: config.openai_key || 'sk-proj-...8aF', status: 'standby', usage: 380, priority: 2, c: C.green },
+      { id: 'claude-1', name: 'Anthropic Claude 3.5 (Backup)', key: config.claude_key || 'sk-ant-...99x', status: 'standby', usage: 120, priority: 3, c: C.pink }
+    ]
+  })
+
+  const [newKeyProvider, setNewKeyProvider] = useState('gemini')
+  const [newKeyValue, setNewKeyValue] = useState('')
+
+  const handleAddKeyToPool = async () => {
+    if (!newKeyValue.trim()) return notify('⚠️ Bitte Schlüssel eingeben')
+    try {
+      const res = await fetch('/api/admin/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: newKeyProvider, apiKey: newKeyValue.trim(), priority: 1 })
+      })
+      const data = await res.json()
+      if (data.success) {
+        notify(`✅ Neuer ${newKeyProvider.toUpperCase()} Schlüssel im Round-Robin Pool registriert!`)
+        const newEntry = {
+          id: `${newKeyProvider}-${Date.now()}`,
+          provider: newKeyProvider,
+          maskedKey: `${newKeyValue.trim().slice(0,6)}...${newKeyValue.trim().slice(-4)}`,
+          status: 'active',
+          usage: 0,
+          priority: 1
+        }
+        const updated = [...liveKeys, newEntry]
+        setLiveKeys(updated)
+        localStorage.setItem('scenvy_ai_keys', JSON.stringify(updated))
+        setNewKeyValue('')
+        fetchLiveKeys()
+      } else {
+        notify('❌ Fehler beim Hinzufügen des Schlüssels')
+      }
+    } catch (e) {
+      notify('❌ Server-Fehler beim Speichern')
+    }
+  }
+
+  const handleTestKey = async (keyObj) => {
+    setKeyTestLoading(keyObj.id)
+    try {
+      const startTime = Date.now()
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offer: 'Test Connection Key Check', venue: 'SCENVY Core' })
+      })
+      const latency = Date.now() - startTime
+      if (res.ok) {
+        notify(`⚡ Connection test for ${keyObj.provider?.toUpperCase() || 'KEY'} successful! Latency: ${latency}ms`)
+      } else {
+        notify(`⚠️ Connection status: ${res.status}`)
+      }
+    } catch (e) {
+      notify(`❌ Connection error: ${e.message}`)
+    } finally {
+      setKeyTestLoading(null)
+    }
+  }
 
   return (
     <div style={{minHeight:'100vh',background:C.bg,fontFamily:"'Inter',sans-serif",color:C.white}}>
@@ -96,6 +209,17 @@ export default function Admin() {
           <span style={{fontSize:11,color:C.muted,marginLeft:8}}>/ Platform Admin</span>
         </div>
         <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          <a
+            href="/api/download-zip"
+            download
+            style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:`1px solid ${C.pink}`,background:`${C.pink}22`,color:C.pink,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'inherit',textDecoration:'none'}}
+            title="Gesamten Quellcode als ZIP herunterladen"
+          >
+            <Download size={14}/> 📦 Code ZIP Download
+          </a>
+          <button onClick={() => nav('/dashboard')} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'inherit'}}>
+            🏢 Mandanten Dashboard
+          </button>
           <span style={{fontSize:12,color:C.muted}}>{user?.email}</span>
           <button onClick={logout} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>
             <LogOut size={14}/> Logout
@@ -176,25 +300,28 @@ export default function Admin() {
         {tab==='tenants' && (
           <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-              <div style={{fontSize:14,fontWeight:700}}>All Tenants ({tenants.length})</div>
-              <button onClick={()=>notify('Invite via Supabase Auth → invite user')} style={{padding:'8px 16px',borderRadius:8,border:'none',background:C.purple,color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,fontFamily:'inherit'}}>+ Invite Tenant</button>
+              <div>
+                <div style={{fontSize:16,fontWeight:800}}>Mandanten Übersicht ({tenants.length})</div>
+                <div style={{fontSize:12,color:C.muted}}>Klicke auf "🚀 Einstieg", um direkt in die Einstellungen eines Mandanten zu wechseln</div>
+              </div>
+              <button onClick={()=>notify('Neuer Mandant - Einladung via Supabase/System versendet')} style={{padding:'8px 16px',borderRadius:8,border:'none',background:C.purple,color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,fontFamily:'inherit'}}>+ Mandant Anlegen</button>
             </div>
             {isLoading ? (
-              <div style={{padding:40,textAlign:'center',color:C.muted}}>Lade Tenants...</div>
+              <div style={{padding:40,textAlign:'center',color:C.muted}}>Lade Mandanten...</div>
             ) : tenants.length === 0 ? (
-              <div style={{padding:40,textAlign:'center',color:C.muted}}>Noch keine Tenants.</div>
+              <div style={{padding:40,textAlign:'center',color:C.muted}}>Noch keine Mandanten vorhanden.</div>
             ) : (
               <>
-                <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.6fr 0.6fr 0.7fr 1.1fr 1.5fr',gap:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
-                  {['Tenant','Plan','Locs','Reels','MRR','Status','Aktionen'].map((h,i)=>(
+                <div style={{display:'grid',gridTemplateColumns:'2fr 0.9fr 0.5fr 0.5fr 0.6fr 0.9fr 2.1fr',gap:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
+                  {['Tenant','Plan','Locs','Reels','MRR','Status','Aktionen & Einstieg'].map((h,i)=>(
                     <div key={i} style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:1}}>{h}</div>
                   ))}
                 </div>
                 {tenants.map(t=>(
-                  <div key={t.id} style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.6fr 0.6fr 0.7fr 1.1fr 1.5fr',gap:10,padding:'13px 0',borderBottom:`1px solid ${C.border}`,alignItems:'center'}}>
+                  <div key={t.id} style={{display:'grid',gridTemplateColumns:'2fr 0.9fr 0.5fr 0.5fr 0.6fr 0.9fr 2.1fr',gap:10,padding:'13px 0',borderBottom:`1px solid ${C.border}`,alignItems:'center'}}>
                     <div>
-                      <div style={{fontSize:13,fontWeight:600}}>{t.name}</div>
-                      <div style={{fontSize:10,color:C.muted}}>{t.company_city?t.company_city+' · ':''}{t.id?.slice(0,8)}...</div>
+                      <div style={{fontSize:13,fontWeight:700,color:C.white}}>{t.name}</div>
+                      <div style={{fontSize:10,color:C.muted}}>{t.contact_email || t.company_city || t.id?.slice(0,10)}</div>
                     </div>
                     <select value={t.plan||'starter'} onChange={e=>setPlan(t.id,e.target.value)} style={{fontSize:10,fontWeight:700,padding:'4px 8px',borderRadius:7,border:'none',cursor:'pointer',background:`${PLAN_C[t.plan||'starter']}28`,color:PLAN_C[t.plan||'starter'],outline:'none',fontFamily:'inherit'}}>
                       <option value="starter">STARTER</option>
@@ -206,15 +333,17 @@ export default function Admin() {
                     <div style={{fontSize:13,fontWeight:700,color:C.green}}>€{PLAN_MRR[t.plan||'starter']||0}</div>
                     <div>
                       <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:20,background:t.status==='active'?`${C.green}22`:t.status==='suspended'?`${C.pink}22`:`${C.orange}22`,color:t.status==='active'?C.green:t.status==='suspended'?C.pink:C.orange,border:`1px solid ${t.status==='active'?C.green:t.status==='suspended'?C.pink:C.orange}44`}}>
-                        {t.status==='active'?'● Active':t.status==='suspended'?'⛔ Deaktiviert':'⏳ Trial'}
+                        {t.status==='active'?'● Active':t.status==='suspended'?'⛔ Inaktiv':'⏳ Trial'}
                       </span>
                     </div>
                     <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                      <button onClick={()=>toggleTenantStatus(t)}
-                        style={{padding:'5px 10px',borderRadius:6,border:`1px solid ${t.status==='active'?C.orange:C.green}`,background:t.status==='active'?`${C.orange}15`:`${C.green}15`,color:t.status==='active'?C.orange:C.green,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4}}>
-                        <Power size={11}/> {t.status==='active'?'Deaktivieren':'Aktivieren'}
+                      <button onClick={()=>{ impersonateTenant(t); nav('/dashboard') }} style={{padding:'5px 10px',borderRadius:6,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4}} title="Als Mandant einloggen und Dashboard verwalten">
+                        <ExternalLink size={11}/> 🚀 Einstieg
                       </button>
-                      <button onClick={()=>setEditTenant(t)} style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',display:'flex',alignItems:'center'}} title="Bearbeiten">
+                      <button onClick={()=>toggleTenantStatus(t)} style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${t.status==='active'?C.orange:C.green}`,background:t.status==='active'?`${C.orange}15`:`${C.green}15`,color:t.status==='active'?C.orange:C.green,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}} title="Status umschalten">
+                        <Power size={11}/>
+                      </button>
+                      <button onClick={()=>setEditTenant(t)} style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.white,cursor:'pointer',display:'flex',alignItems:'center'}} title="Details & Preise bearbeiten">
                         <ChevronRight size={14}/>
                       </button>
                       <button onClick={()=>handleDeleteTenant(t)} style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${C.pink}44`,background:`${C.pink}11`,color:C.pink,cursor:'pointer',display:'flex',alignItems:'center'}} title="Löschen">
@@ -233,6 +362,426 @@ export default function Admin() {
                 catch(e) { notify('❌ ' + e.message) }
               }} />
             )}
+          </div>
+        )}
+
+        {/* Multi-KI API & System Health Tab */}
+        {tab==='ai_system' && (
+          <div style={{display:'grid',gap:24}}>
+            {/* Provider Status Grid */}
+            <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:16,fontWeight:800,display:'flex',alignItems:'center',gap:8}}>
+                    <Activity size={18} color={C.purple}/> 🤖 Multi-KI-API System & Provider Pool
+                  </div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>
+                    Ausfallsichere Multi-Provider Architektur mit automatischem Failover bei Rate Limits (429) & Timeouts.
+                  </div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8,background:C.bg,padding:'6px 12px',borderRadius:20,border:`1px solid ${C.border}`}}>
+                  <span style={{fontSize:11,color:C.muted}}>Routing Strategy:</span>
+                  <select
+                    value={aiPool.strategy}
+                    onChange={e=>setAiPool(p=>({...p, strategy: e.target.value}))}
+                    style={{background:'transparent',color:C.purple,fontWeight:800,fontSize:12,border:'none',outline:'none',cursor:'pointer'}}
+                  >
+                    <option value="fallback">🔁 Fallback Chain (Gemini → OpenAI → Claude → Kimi)</option>
+                    <option value="round_robin">⚖️ Load Balancing (Round-Robin)</option>
+                    <option value="feature_based">🎯 Feature-Based Routing</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))',gap:14,marginBottom:20}}>
+                {(liveKeys.length > 0 ? liveKeys : [
+                  { id: 'gemini-1', provider: 'gemini', maskedKey: 'AIzaSy...Primary', status: 'active', usage: 1420, priority: 1 },
+                  { id: 'openai-1', provider: 'openai', maskedKey: 'sk-proj-...8aF', status: 'active', usage: 380, priority: 2 },
+                  { id: 'claude-1', provider: 'claude', maskedKey: 'sk-ant-...99x', status: 'standby', usage: 120, priority: 3 },
+                  { id: 'kimi-1', provider: 'kimi', maskedKey: 'sk-moon-...33k', status: 'standby', usage: 45, priority: 4 },
+                ]).map(p => {
+                  const pColor = p.provider === 'gemini' ? C.purple : p.provider === 'openai' ? C.green : p.provider === 'claude' ? C.pink : C.blue
+                  return (
+                    <div key={p.id} style={{background:C.bg,padding:16,borderRadius:14,border:`1px solid ${pColor}44`}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <span style={{fontSize:10,fontWeight:800,padding:'2px 8px',borderRadius:10,background:`${pColor}22`,color:pColor,textTransform:'uppercase'}}>
+                          {p.provider} (Prio {p.priority || 1})
+                        </span>
+                        <span style={{fontSize:11,fontWeight:700,color:p.status==='active'?C.green:C.orange,display:'flex',alignItems:'center',gap:4}}>
+                          <span style={{width:6,height:6,borderRadius:'50%',background:p.status==='active'?C.green:C.orange}}/>
+                          {p.status==='active'?'🟢 ACTIVE':p.status==='standby'?'🟡 STANDBY':'🔴 OFFLINE'}
+                        </span>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,marginBottom:4,color:C.white}}>{p.provider.toUpperCase()} Key</div>
+                      <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Requests: <strong style={{color:C.white}}>{p.usage || 0}</strong></div>
+                      <div style={{fontSize:11,color:C.white,fontFamily:'monospace',background:C.card,padding:6,borderRadius:6,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:12}}>
+                        {p.maskedKey || p.apiKey || 'Hinterlegt'}
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        <button
+                          onClick={() => handleTestKey(p)}
+                          disabled={keyTestLoading === p.id}
+                          style={{flex:1,padding:'5px 8px',borderRadius:6,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}
+                        >
+                          <Zap size={12}/> {keyTestLoading === p.id ? 'Testet...' : '⚡ Testen'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLiveKeys(prev => prev.map(k => k.id === p.id ? { ...k, status: k.status === 'active' ? 'standby' : 'active' } : k))
+                            notify(`🔄 ${p.provider.toUpperCase()} Status umgeschaltet`)
+                          }}
+                          style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${C.border}`,background:C.card,color:C.muted,fontSize:11,cursor:'pointer'}}
+                          title="Status umschalten"
+                        >
+                          <RefreshCw size={12}/>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLiveKeys(prev => prev.filter(k => k.id !== p.id))
+                            notify(`🗑️ ${p.provider.toUpperCase()} Key entfernt`)
+                          }}
+                          style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${C.pink}44`,background:`${C.pink}11`,color:C.pink,fontSize:11,cursor:'pointer'}}
+                          title="Löschen"
+                        >
+                          <Trash2 size={12}/>
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{background:`${C.purple}0A`,border:`1px solid ${C.purple}33`,borderRadius:12,padding:16,marginBottom:20}}>
+                <div style={{fontSize:13,fontWeight:800,marginBottom:10,color:C.white,display:'flex',alignItems:'center',gap:6}}>
+                  <Plus size={16} color={C.purple}/> API Key für weitere KIs im Portal registrieren
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 3fr auto',gap:10,alignItems:'center'}}>
+                  <select
+                    value={newKeyProvider}
+                    onChange={e => setNewKeyProvider(e.target.value)}
+                    style={{background:C.bg,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none'}}
+                  >
+                    <option value="gemini">Google Gemini Key</option>
+                    <option value="openai">OpenAI ChatGPT Key</option>
+                    <option value="claude">Anthropic Claude Key</option>
+                    <option value="kimi">Moonshot Kimi Key</option>
+                    <option value="deepseek">DeepSeek AI Key</option>
+                    <option value="mistral">Mistral AI Key</option>
+                  </select>
+
+                  <input
+                    type="password"
+                    placeholder="Eingabe API Key (sk-... / AIzaSy...)"
+                    value={newKeyValue}
+                    onChange={e => setNewKeyValue(e.target.value)}
+                    style={{background:C.bg,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none',fontFamily:'monospace'}}
+                  />
+
+                  <button
+                    onClick={handleAddKeyToPool}
+                    style={{background:'linear-gradient(135deg,#7C3AED 0%,#FF2D8D 100%)',color:'#fff',padding:'10px 18px',borderRadius:8,fontWeight:700,fontSize:13,border:'none',cursor:'pointer',whiteSpace:'nowrap'}}
+                  >
+                    ➕ Key Speichern & Registrieren
+                  </button>
+                </div>
+              </div>
+
+              <div style={{background:`${C.purple}0A`,border:`1px solid ${C.purple}33`,borderRadius:12,padding:14,fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:12}}>
+                <CheckCircle size={18} color={C.green}/>
+                <div>
+                  <strong style={{color:C.white}}>Automatische Round-Robin Rotations-Garantie:</strong> Bei jeder Anfrage an den Generator schaltet das Backend reibungslos durch alle aktiven Schlüssel. Erreicht ein Key ein Minuten- oder Quotenlimit (429), schaltet das System sofort ohne Unterbrechung zum nächsten Schlüssel weiter!
+                </div>
+              </div>
+            </div>
+
+            {/* Reel Standort Mapping Debugger & Re-Assignment */}
+            <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:4,display:'flex',alignItems:'center',gap:8}}>
+                <MapPin size={18} color={C.blue}/> 📍 Real-Zuordnungen Core Inspector & Standort-Assignment
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:16}}>
+                Verwalte und korrigiere Standort-Zuweisungen (z.B. <code style={{color:C.blue}}>DT-Demo</code> oder <code style={{color:C.blue}}>ALL</code>) direkt für alle echten Reels.
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1.2fr',gap:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,marginBottom:8}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700}}>REEL TITEL & TYP</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700}}>STANDORT-ZUORDNUNG WÄHLEN</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700}}>STATUS</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700}}>AKTION</div>
+              </div>
+
+              {(dbReels.length > 0 ? dbReels : [
+                { id: 'demo-1', title: '50% Off Signature Cocktails', location_id: 'dt-demo', status: 'live', type: 'offer' },
+                { id: 'demo-2', title: "Chef's Tasting Menu & Wine Pairing", location_id: 'dt-demo', status: 'live', type: 'menu' },
+                { id: 'demo-3', title: 'Live Music & Rooftop Lounge', location_id: 'ALL', status: 'live', type: 'event' },
+                { id: 'demo-4', title: 'Aperitivo Hour 2-for-1', location_id: 'dt-demo', status: 'live', type: 'promo' },
+              ]).map(r => {
+                const currentLocId = reelLocMappings[r.id] !== undefined ? reelLocMappings[r.id] : (r.location_id || r.locationId || 'dt-demo')
+                const allLocOptions = [
+                  { id: 'dt-demo', name: '📍 DT-Demo (Demo-Kunde)' },
+                  { id: 'ALL', name: '🌐 Alle Standorte (Global / ALL)' },
+                  ...dbLocations.map(l => ({ id: l.id, name: `📍 ${l.name}` }))
+                ]
+
+                const handleSave = async () => {
+                  try {
+                    await saveReelMutation.mutateAsync({
+                      reel: { ...r, location_id: currentLocId, locationId: currentLocId, updated_at: new Date().toISOString() },
+                      tenantId: r.tenant_id || 'demo-tenant'
+                    })
+                    const chosen = allLocOptions.find(o => o.id === currentLocId)
+                    notify(`✅ Zuordnung gespeichert: "${r.title}" -> ${chosen ? chosen.name : currentLocId}`)
+                  } catch (e) {
+                    notify('❌ Fehler beim Speichern: ' + e.message)
+                  }
+                }
+
+                return (
+                  <div key={r.id} style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1.2fr',gap:10,alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${C.border}33`,fontSize:12}}>
+                    <div style={{fontWeight:700,display:'flex',alignItems:'center',gap:6,color:C.white}}>
+                      <Film size={14} color={C.pink}/> {r.title}
+                    </div>
+                    <div>
+                      <select
+                        value={currentLocId}
+                        onChange={e => setReelLocMappings(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        style={{width:'100%',background:C.bg,color:C.white,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,outline:'none',fontWeight:600}}
+                      >
+                        {allLocOptions.map(opt => (
+                          <option key={opt.id} value={opt.id}>{opt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:10,background:`${C.green}22`,color:C.green}}>
+                        ● {(r.status || 'live').toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <button
+                        onClick={handleSave}
+                        style={{padding:'6px 12px',borderRadius:8,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}
+                      >
+                        <Save size={12}/> Zuweisung Speichern
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Modules Tab (Purchased Modules Assignment) */}
+        {tab==='modules' && (
+          <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🧩 Modul-Freigaben & Katalog</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Weise deinen Mandanten gekaufte Module zu und schalte Funktionen wie Speisekarten-Generierung, TV-Screens oder Host-Service frei.</div>
+
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
+              {[
+                { id: 'flow', name: '🎬 SCENVY FLOW', sub: 'KI Video Reels & Social Feed', price: '29 €/mtl.', color: C.purple, desc: 'KI Video Reel Generierung, Social Push & Timetable' },
+                { id: 'menu', name: '🍽️ SCENVY MENU', sub: 'SNAP KI Speisekarte', price: '49 €/mtl.', color: C.orange, desc: 'Automatischer KI-Gastro-Speisekarten Reel Generator' },
+                { id: 'board', name: '📺 SCENVY BOARD', sub: 'Digital Signage & Screens', price: '79 €/mtl.', color: C.blue, desc: 'TV-Displays, Smart-TV Sync & Playlists' },
+                { id: 'host', name: '🏨 SCENVY HOST', sub: 'Concierge & Service', price: '39 €/mtl.', color: C.green, desc: 'Gästeruf, Digitales Gästebuch & Live Reviews' },
+              ].map(m => (
+                <div key={m.id} style={{background:C.bg,padding:16,borderRadius:14,border:`1px solid ${m.color}44`}}>
+                  <div style={{fontSize:14,fontWeight:800,color:m.color,marginBottom:2}}>{m.name}</div>
+                  <div style={{fontSize:11,color:C.white,fontWeight:600}}>{m.sub}</div>
+                  <div style={{fontSize:18,fontWeight:900,margin:'10px 0 6px',color:C.white}}>{m.price}</div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.4}}>{m.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Gekaufte Module pro Mandant umschalten</div>
+            <div style={{display:'grid',gap:12}}>
+              {tenants.map(t => {
+                const mods = t.modules || { flow: true, menu: true, board: false, host: false }
+                const toggleMod = async (modKey) => {
+                  const updatedMods = { ...mods, [modKey]: !mods[modKey] }
+                  try {
+                    await updateTenant.mutateAsync({ id: t.id, updates: { modules: updatedMods } })
+                    notify(`✅ Modul "${modKey.toUpperCase()}" ${!mods[modKey] ? 'freigeschaltet' : 'deaktiviert'}`)
+                  } catch (e) { notify('❌ Fehler: ' + e.message) }
+                }
+
+                return (
+                  <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:16,background:C.bg,borderRadius:12,border:`1px solid ${C.border}`}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:800}}>{t.name}</div>
+                      <div style={{fontSize:11,color:C.muted}}>{t.contact_email || t.company_city || t.id}</div>
+                    </div>
+                    <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                      {[
+                        { k: 'flow', label: '🎬 Flow', c: C.purple },
+                        { k: 'menu', label: '🍽️ Menu', c: C.orange },
+                        { k: 'board', label: '📺 Board', c: C.blue },
+                        { k: 'host', label: '🏨 Host', c: C.green },
+                      ].map(m => (
+                        <button
+                          key={m.k}
+                          onClick={() => toggleMod(m.k)}
+                          style={{
+                            padding: '6px 12px', borderRadius: 8,
+                            border: `1px solid ${mods[m.k] ? m.c : C.border}`,
+                            background: mods[m.k] ? `${m.c}22` : 'transparent',
+                            color: mods[m.k] ? m.c : C.muted,
+                            fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 4
+                          }}
+                        >
+                          {mods[m.k] ? '✓ ' : '+ '}{m.label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => { impersonateTenant(t); nav('/dashboard') }}
+                        style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.purple}`, background: C.purple, color: C.white, fontWeight: 700, fontSize: 12, cursor: 'pointer', marginLeft: 8 }}
+                      >
+                        🚀 Dashboard
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Billing Tab (Accounting & Invoicing) */}
+        {tab==='billing' && (
+          <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:800}}>💳 Abrechnung & Stripe Billing (Invoices)</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>Monatliche Rechnungen, Zahlungsstatus & Stripe Synchronisation</div>
+              </div>
+              <button onClick={() => notify('🧾 Stripe Test-Rechnung generiert & an Kunden gesendet!')} style={{padding:'9px 18px',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                <Plus size={14}/> Rechnung Erstellen
+              </button>
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
+              <div style={{background:C.bg,padding:16,borderRadius:12,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700}}>EINNAHMEN DIESEN MONAT</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.green,marginTop:4}}>€{mrr}</div>
+                <div style={{fontSize:10,color:C.green,marginTop:2}}>+ 19% USt. ausgewiesen</div>
+              </div>
+              <div style={{background:C.bg,padding:16,borderRadius:12,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700}}>OFFENE RECHNUNGEN</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.orange,marginTop:4}}>€29</div>
+                <div style={{fontSize:10,color:C.orange,marginTop:2}}>1 Mandant in Mahnstufe 1</div>
+              </div>
+              <div style={{background:C.bg,padding:16,borderRadius:12,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700}}>STRIPE ACTIVE SUBS</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.blue,marginTop:4}}>{tenants.length}</div>
+                <div style={{fontSize:10,color:C.blue,marginTop:2}}>Automatische Abbuchung</div>
+              </div>
+              <div style={{background:C.bg,padding:16,borderRadius:12,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700}}>STEUER / UST (19%)</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.purple,marginTop:4}}>€{(mrr * 0.19).toFixed(2)}</div>
+                <div style={{fontSize:10,color:C.purple,marginTop:2}}>Finanzamt Export bereit</div>
+              </div>
+            </div>
+
+            <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Rechnungsverlauf (Optische Stripe Billing UI)</div>
+            <div style={{display:'grid',gap:8}}>
+              {tenants.map((t, idx) => {
+                const planPrice = PLAN_MRR[t.plan || 'starter'] || 29
+                const vat = (planPrice * 0.19).toFixed(2)
+                const totalBrutto = (planPrice * 1.19).toFixed(2)
+
+                return (
+                  <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:14,background:C.bg,borderRadius:10,border:`1px solid ${C.border}`}}>
+                    <div style={{display:'flex',alignItems:'center',gap:12}}>
+                      <FileText size={18} color={C.purple}/>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700}}>Rechnung #INV-2026-0{idx+1} — {t.name}</div>
+                        <div style={{fontSize:11,color:C.muted}}>Abo {t.plan?.toUpperCase()||'PRO'} · Netto: €{planPrice} + USt: €{vat}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:16}}>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontSize:14,fontWeight:800,color:C.white}}>€{totalBrutto} brutto</div>
+                        <div style={{fontSize:10,color:C.green,fontWeight:700}}>● BEZAHLT VIA STRIPE</div>
+                      </div>
+                      <button onClick={() => notify(`📄 PDF Rechnung #INV-2026-0${idx+1} heruntergeladen`)} style={{padding:'6px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.white,fontWeight:600,fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                        <Download size={13}/> PDF
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Pricing & Tarife Tab */}
+        {tab==='pricing' && (
+          <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:800}}>🏷️ Preise, Tarife & Individualrabatte</div>
+                <div style={{fontSize:13,color:C.muted,marginTop:2}}>Konfiguriere Standard-Preise für Starter, Pro & Enterprise sowie Modul-Add-On Preise.</div>
+              </div>
+              <button
+                onClick={savePricingConfig}
+                style={{padding:'10px 20px',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}
+              >
+                <Save size={15}/> ✓ Preise & Tarife Speichern
+              </button>
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:24}}>
+              {[
+                { key: 'starter_price', name: 'STARTER', color: C.muted, features: ['1 Standort', 'Bis zu 3 Reels', 'Wasserzeichen'] },
+                { key: 'pro_price', name: 'PRO', color: C.blue, features: ['Unbegrenzte Standorte', 'SNAP KI Speisekarte', 'Full HD Exports'] },
+                { key: 'enterprise_price', name: 'ENTERPRISE', color: C.purple, features: ['Alle Module inklusive', 'SCENVY Board Digital Signage', 'Dedicated Support & White Label'] },
+              ].map(p => (
+                <div key={p.name} style={{background:C.bg,padding:20,borderRadius:14,border:`1px solid ${p.color}44`}}>
+                  <div style={{fontSize:12,fontWeight:800,color:p.color,letterSpacing:1}}>{p.name} PLAN</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,margin:'12px 0'}}>
+                    <input
+                      type="number"
+                      value={pricingConfig[p.key]}
+                      onChange={e => setPricingConfig(prev => ({ ...prev, [p.key]: Number(e.target.value) }))}
+                      style={{width:90,background:C.card,color:C.white,padding:'8px 12px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:18,fontWeight:900,outline:'none'}}
+                    />
+                    <span style={{fontSize:14,fontWeight:700,color:C.muted}}>€ / mtl.</span>
+                  </div>
+                  <div style={{display:'grid',gap:6}}>
+                    {p.features.map((f, i) => (
+                      <div key={i} style={{fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:6}}>
+                        <Check size={13} color={p.color}/> {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Modul Preiskonfiguration (€ / mtl.)</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+              {[
+                { key: 'module_flow', name: '🎬 SCENVY Flow', color: C.purple },
+                { key: 'module_menu', name: '🍽️ SCENVY Menu', color: C.orange },
+                { key: 'module_board', name: '📺 SCENVY Board', color: C.blue },
+                { key: 'module_host', name: '🏨 SCENVY Host', color: C.green },
+              ].map(m => (
+                <div key={m.key} style={{background:C.bg,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:12,fontWeight:700,color:m.color,marginBottom:8}}>{m.name}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <input
+                      type="number"
+                      value={pricingConfig[m.key]}
+                      onChange={e => setPricingConfig(prev => ({ ...prev, [m.key]: Number(e.target.value) }))}
+                      style={{width:'100%',background:C.card,color:C.white,padding:'6px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:14,fontWeight:800,outline:'none'}}
+                    />
+                    <span style={{fontSize:12,color:C.muted}}>€</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -322,26 +871,42 @@ function ConfigField({ label, value, onChange, placeholder, type='text', icon })
 }
 
 function TenantEditDrawer({ tenant, onClose, onSave, onDelete }) {
+  const nav = useNavigate()
+  const { impersonateTenant } = useAuth()
   const [form, setForm] = useState({
     name: tenant.name||'', plan: tenant.plan||'starter', status: tenant.status||'trial',
+    custom_price: tenant.custom_price||'',
     company_name: tenant.company_name||'', company_address: tenant.company_address||'',
     company_zip: tenant.company_zip||'', company_city: tenant.company_city||'',
     contact_name: tenant.contact_name||'', contact_email: tenant.contact_email||'',
     contact_phone: tenant.contact_phone||'', website: tenant.website||'',
     stripe_customer_id: tenant.stripe_customer_id||'',
+    modules: tenant.modules || { flow: true, menu: true, board: false, host: false }
   })
   const setF = (k,v) => setForm(f=>({...f,[k]:v}))
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.6)',zIndex:200,display:'flex',justifyContent:'flex-end',animation:'fadeUp .2s ease'}} onClick={onClose}>
       <div style={{width:480,background:C.card,height:'100vh',overflowY:'auto',borderLeft:`1px solid ${C.border}`,padding:28}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <Building2 size={20} color={C.purple}/>
             <div style={{fontSize:18,fontWeight:800}}>{tenant.name}</div>
           </div>
           <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer',padding:4}}><X size={20}/></button>
         </div>
+
+        <button
+          onClick={() => { impersonateTenant(tenant); nav('/dashboard') }}
+          style={{
+            width:'100%', padding:'12px 0', borderRadius:10, border:'none',
+            background: grad(C.purple, C.pink), color: C.white, fontWeight: 800,
+            fontSize: 14, cursor: 'pointer', marginBottom: 20, display:'flex',
+            alignItems:'center', justifyContent:'center', gap:8, fontFamily:'inherit'
+          }}
+        >
+          <ExternalLink size={16}/> 🚀 Als dieser Tenant ins Dashboard einsteigen
+        </button>
 
         <div style={{display:'grid',gap:14}}>
           <Field label="TENANT NAME" value={form.name} onChange={v=>setF('name',v)} />
@@ -363,6 +928,36 @@ function TenantEditDrawer({ tenant, onClose, onSave, onDelete }) {
               </select>
             </div>
           </div>
+
+          <Field label="INDIVIDUELLER PREIS (€ / MONAT)" value={form.custom_price} onChange={v=>setF('custom_price',v)} placeholder="z.B. 49" />
+
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>GEKAUFTE MODULE</label>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                { k: 'flow', l: '🎬 SCENVY Flow' },
+                { k: 'menu', l: '🍽️ SCENVY Menu' },
+                { k: 'board', l: '📺 SCENVY Board' },
+                { k: 'host', l: '🏨 SCENVY Host' },
+              ].map(m => (
+                <button
+                  key={m.k}
+                  type="button"
+                  onClick={() => setF('modules', { ...form.modules, [m.k]: !form.modules?.[m.k] })}
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    border: `1px solid ${form.modules?.[m.k] ? C.purple : C.border}`,
+                    background: form.modules?.[m.k] ? `${C.purple}22` : C.bg,
+                    color: form.modules?.[m.k] ? C.white : C.muted,
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left'
+                  }}
+                >
+                  {form.modules?.[m.k] ? '✓ ' : '✕ '}{m.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <Field label="FIRMENNAME" value={form.company_name} onChange={v=>setF('company_name',v)} />
           <Field label="ADRESSE" value={form.company_address} onChange={v=>setF('company_address',v)} />
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>

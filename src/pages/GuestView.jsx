@@ -65,15 +65,45 @@ export default function GuestView() {
     )
   }
 
+  const [mediaError, setMediaError] = useState({})
   const r = reels[curr]
+
+  const fallbackImages = {
+    OFFER: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop',
+    EVENT: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600&auto=format&fit=crop',
+    MENU: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop',
+    PROMO: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop'
+  }
+
+  const activeMediaUrl = mediaError[r.id]
+    ? (fallbackImages[r.tag] || fallbackImages.OFFER)
+    : (r.mediaUrl || fallbackImages[r.tag] || fallbackImages.OFFER)
 
   return (
     <div style={{ height: '100vh', width: '100vw', background: '#0D0D14', color: '#fff', overflow: 'hidden', position: 'relative' }}>
-      <div style={{ height: '100%', width: '100%', background: r.bg || 'linear-gradient(160deg,#1a0533 0%,#0d0d14 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '20px 20px 40px', position: 'relative', transition: 'background 0.5s ease' }}>
-        {r.mediaUrl && (
-          <img src={r.mediaUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
+      <div style={{ height: '100%', width: '100%', background: r.bg || 'linear-gradient(160deg,#1a0533 0%,#3d1168 55%,#0d0d14 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '20px 20px 40px', position: 'relative', transition: 'background 0.5s ease' }}>
+        {activeMediaUrl && (
+          (r.mediaType === 'video' && !mediaError[r.id]) ? (
+            <video
+              src={activeMediaUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              onError={() => setMediaError(prev => ({ ...prev, [r.id]: true }))}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.75 }}
+            />
+          ) : (
+            <img
+              src={activeMediaUrl}
+              alt={r.title}
+              onError={() => setMediaError(prev => ({ ...prev, [r.id]: true }))}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.75 }}
+            />
+          )
         )}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.85) 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(13,13,20,0.5) 0%, rgba(13,13,20,0.2) 40%, rgba(13,13,20,0.9) 100%)' }} />
 
         {/* Top bar & progress */}
         <div style={{ position: 'relative', zIndex: 10 }}>

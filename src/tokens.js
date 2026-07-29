@@ -1,10 +1,20 @@
 export const C = {
-  bg:'#0D0D14', card:'#1A1A24', card2:'#24243A', border:'#2A2A3E',
-  purple:'#7C3AED', purpleL:'#9F5EFF', pink:'#FF2D8D', blue:'#00D4FF',
-  green:'#00E676', orange:'#FF9500', white:'#FFFFFF', muted:'#9C9CAE', dim:'#4A4A5E',
+  bg:'#0F172A', card:'#1E293B', card2:'#334155', border:'rgba(255,255,255,0.08)',
+  flow:'#8B5CF6', purple:'#8B5CF6', purpleL:'#A78BFA', pink:'#EC4899', 
+  menu:'#F97316', orange:'#F97316', 
+  board:'#3B82F6', blue:'#3B82F6', 
+  host:'#10B981', green:'#10B981', 
+  white:'#FFFFFF', muted:'#94A3B8', dim:'#64748B',
 }
 export const grad  = (a,b) => `linear-gradient(135deg,${a},${b})`
 export const gradV = (a,b) => `linear-gradient(180deg,${a},${b})`
+
+export const moduleColors = {
+  flow: '#8B5CF6',   // Lila
+  menu: '#F97316',   // Orange
+  board: '#3B82F6',  // Blau
+  host: '#10B981',   // Grün
+}
 
 export const tokens = {
   bg: '#0D0D14',

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { C, grad } from '@/tokens'
 import { ScenvyLogoFull, ScenvyLogoIcon } from '@/components/ScenvyLogo'
-import { copyToClipboard, downloadQR, qrImageUrl } from '@/storage'
+import { copyToClipboard, downloadQR, qrImageUrl, getGuestUrl } from '@/storage'
 import { useAuth } from '@/lib/AuthContext'
 import {
   useReels, useSaveReel, useDeleteReel,
@@ -12,12 +12,13 @@ import {
   useTenant, useSaveTenantProfile
 } from '@/lib/db'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Home, Film, MapPin, BarChart2, Sparkles, Settings, Menu, QrCode, Eye, MousePointer, Video, Plus, Trash2, RefreshCw, Copy, LogOut, Upload, Link, X, Image, ExternalLink, CreditCard as Edit2, Download, Globe, Save, Mail, Shield, Library, Building2, Phone } from 'lucide-react'
+import { Home, Film, MapPin, BarChart2, Sparkles, Settings, Menu, QrCode, Eye, MousePointer, Video, Plus, Trash2, RefreshCw, Copy, LogOut, Upload, Link, X, Image, ExternalLink, CreditCard as Edit2, Download, Globe, Save, Mail, Shield, Library, Building2, Phone, Utensils, Tv, ConciergeBell, Layers } from 'lucide-react'
+import MenuGenerator from '@/pages/MenuGenerator'
 
 // ── i18n ─────────────────────────────────────────────────
 const T = {
-  de:{ nav:{overview:'Übersicht',reels:'Reels',locations:'Standorte',analytics:'Analytics',ai:'KI-Generator',qr:'QR-Codes',media:'Mediathek',settings:'Einstellungen',company:'Firmendaten'}, logout:'Abmelden', thisWeek:'diese Woche', active:'Aktiv', inactive:'Inaktiv', scans:'Scans', watchRate:'Watch Rate', deactivate:'Deaktivieren', activate:'Aktivieren', save:'Speichern', cancel:'Abbrechen', edit:'Bearbeiten', delete:'Löschen' },
-  en:{ nav:{overview:'Overview',reels:'Reels',locations:'Locations',analytics:'Analytics',ai:'AI Generator',qr:'QR Codes',media:'Media Library',settings:'Settings',company:'Company Data'}, logout:'Log out', thisWeek:'this week', active:'Active', inactive:'Inactive', scans:'Scans', watchRate:'Watch Rate', deactivate:'Deactivate', activate:'Activate', save:'Save', cancel:'Cancel', edit:'Edit', delete:'Delete' },
+  de:{ nav:{overview:'Übersicht',reels:'Reels',locations:'Standorte',analytics:'Analytics',ai:'KI-Generator',menu_generator:'AI Speisekarte',qr:'QR-Codes',media:'Mediathek',settings:'Einstellungen',company:'Firmendaten'}, logout:'Abmelden', thisWeek:'diese Woche', active:'Aktiv', inactive:'Inaktiv', scans:'Scans', watchRate:'Watch Rate', deactivate:'Deaktivieren', activate:'Aktivieren', save:'Speichern', cancel:'Abbrechen', edit:'Bearbeiten', delete:'Löschen' },
+  en:{ nav:{overview:'Overview',reels:'Reels',locations:'Locations',analytics:'Analytics',ai:'AI Generator',menu_generator:'AI Menu',qr:'QR Codes',media:'Media Library',settings:'Settings',company:'Company Data'}, logout:'Log out', thisWeek:'this week', active:'Active', inactive:'Inactive', scans:'Scans', watchRate:'Watch Rate', deactivate:'Deactivate', activate:'Activate', save:'Save', cancel:'Cancel', edit:'Edit', delete:'Delete' },
 }
 
 const pill=(label,color)=>(<span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:20,background:`${color}28`,color,border:`1px solid ${color}44`}}>{label}</span>)
@@ -25,16 +26,20 @@ const pill=(label,color)=>(<span style={{fontSize:10,fontWeight:700,padding:'3px
 // ── Reel Modal ────────────────────────────────────────────
 function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
   const isEdit = !!reel?.id
-  const [title,      setTitle]      = useState(reel?.title      || '')
-  const [type,       setType]       = useState(reel?.type       || 'offer')
-  const [locationId, setLocationId] = useState(reel?.location_id|| locs[0]?.id || '')
-  const [ctaText,    setCtaText]    = useState(reel?.cta        || 'Order Now')
-  const [ctaUrl,     setCtaUrl]     = useState(reel?.cta_url    || '')
-  const [ctaAction,  setCtaAction]  = useState(reel?.cta_action || 'url')
-  const [emoji,      setEmoji]      = useState(reel?.emoji      || '🍹')
-  const [preview,    setPreview]    = useState(reel?.media_url  || null)
-  const [uploading,  setUploading]  = useState(false)
+  const [title,       setTitle]       = useState(reel?.title       || '')
+  const [type,        setType]        = useState(reel?.type        || 'offer')
+  const [locationId,  setLocationId]  = useState(reel?.locationId || reel?.location_id || locs[0]?.id || '')
+  const [ctaText,     setCtaText]     = useState(reel?.cta         || 'Order Now')
+  const [ctaUrl,      setCtaUrl]      = useState(reel?.ctaUrl      || reel?.cta_url || '')
+  const [ctaAction,   setCtaAction]   = useState(reel?.ctaAction   || reel?.cta_action || 'url')
+  const [emoji,       setEmoji]       = useState(reel?.emoji       || '🍹')
+  const [preview,     setPreview]     = useState(reel?.mediaUrl    || reel?.media_url || null)
+  const [status,      setStatus]      = useState(reel?.status      || 'draft')
+  const [scheduledAt, setScheduledAt]  = useState(reel?.scheduledAt || reel?.scheduled_at || '')
+  const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef()
+
+  const EMOJI_PRESETS = ['🍹', '🍸', '🍷', '🍺', '🥂', '🥩', '🍕', '🍔', '🍣', '🥗', '🥐', '🍨', '☕', '🎂', '🎉', '⚡', '🔥', '✨', '🏷️', '📌', '📷', '🎥']
 
   const colorMap = { offer:C.purple, event:C.pink, menu:C.blue, promo:C.orange }
 
@@ -64,46 +69,88 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
       cta_action: ctaAction,
       emoji,
       color:      colorMap[type]||C.purple,
-      status:     reel?.status || 'draft',
+      status:     status,
+      scheduledAt: scheduledAt,
+      scheduled_at: scheduledAt,
+      mediaUrl:   preview,
       media_url:  preview,
       media_type: preview?.includes('.mp4')||preview?.includes('.mov') ? 'video' : 'image',
-      // for UI display
       loc:        loc?.name || '',
-      locationId, ctaUrl, ctaAction, mediaUrl:preview,
+      locationId, ctaUrl, ctaAction, 
     })
   }
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.8)',backdropFilter:'blur(12px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:800,maxHeight:'90vh',overflow:'auto'}}>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:840,maxHeight:'90vh',overflow:'auto'}}>
         <div style={{padding:'20px 24px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,background:C.card,zIndex:10}}>
-          <div style={{fontWeight:700,fontSize:17}}>{isEdit?'✏️ Reel bearbeiten':'➕ Reel erstellen'}</div>
+          <div style={{fontWeight:800,fontSize:17,display:'flex',alignItems:'center',gap:8}}>
+            <span>{isEdit?'✏️ Reel bearbeiten':'➕ Reel erstellen'}</span>
+            <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,background:status==='live'?`${C.green}22`:status==='scheduled'?`${C.orange}22`:C.card2,color:status==='live'?C.green:status==='scheduled'?C.orange:C.muted,fontWeight:700}}>
+              {status==='live'?'● LIVE':status==='scheduled'?'📅 GEPLANT':status==='paused'?'⏸ PAUSIERT':'📝 ENTWURF'}
+            </span>
+          </div>
           <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer'}}><X size={20}/></button>
         </div>
         <div style={{padding:24,display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
-          {/* Left */}
+          {/* Left Column */}
           <div>
             <div style={{marginBottom:18}}>
               <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:7,fontWeight:600,letterSpacing:1}}>FOTO / VIDEO</label>
               <div onDrop={handleDrop} onDragOver={e=>e.preventDefault()} onClick={()=>!uploading&&fileRef.current?.click()}
                 style={{border:`2px dashed ${preview?C.purple:C.border}`,borderRadius:12,overflow:'hidden',cursor:'pointer',minHeight:110,display:'flex',alignItems:'center',justifyContent:'center',background:`${C.purple}08`,position:'relative'}}>
                 {uploading ? <div style={{textAlign:'center'}}><RefreshCw size={24} color={C.purple} style={{animation:'spin 1s linear infinite'}}/><div style={{fontSize:12,color:C.muted,marginTop:8}}>Wird hochgeladen...</div></div>
-                  : preview ? <><img src={preview} style={{width:'100%',maxHeight:160,objectFit:'cover'}} alt=""/><button onClick={e=>{e.stopPropagation();setPreview(null)}} style={{position:'absolute',top:6,right:6,background:C.pink,border:'none',borderRadius:'50%',width:24,height:24,color:C.white,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><X size={11}/></button></>
+                  : preview ? <>
+                      {preview.includes('.mp4')||preview.includes('.mov')||preview.includes('video')?
+                        <video src={preview} autoPlay muted loop playsInline style={{width:'100%',maxHeight:160,objectFit:'cover'}} />:
+                        <img src={preview} style={{width:'100%',maxHeight:160,objectFit:'cover'}} alt=""/>
+                      }
+                      <button onClick={e=>{e.stopPropagation();setPreview(null)}} style={{position:'absolute',top:6,right:6,background:C.pink,border:'none',borderRadius:'50%',width:24,height:24,color:C.white,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><X size={11}/></button>
+                    </>
                   : <div style={{textAlign:'center',padding:20}}><Upload size={26} color={C.purple} style={{marginBottom:8}}/><div style={{fontSize:13,color:C.muted}}>Hier klicken oder reinziehen</div><div style={{fontSize:11,color:C.dim,marginTop:3}}>MP4, MOV, JPG, PNG</div></div>
                 }
                 <input ref={fileRef} type="file" accept="video/*,image/*" onChange={handleFile} style={{display:'none'}}/>
               </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:10,marginBottom:14}}>
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>TITEL *</label>
-                <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="z.B. Happy Hour Special" style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}/>
+
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>TITEL *</label>
+              <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="z.B. Happy Hour Special 2-for-1" style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}/>
+            </div>
+
+            {/* Emoji Selector */}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>EMOJI AUSWÄHLEN</label>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',background:C.bg,padding:10,borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8}}>
+                {EMOJI_PRESETS.map(e => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setEmoji(e)}
+                    style={{
+                      fontSize: 18,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 6,
+                      border: emoji === e ? `2px solid ${C.purple}` : '1px solid transparent',
+                      background: emoji === e ? `${C.purple}33` : 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'transform 0.1s'
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>EMOJI</label>
-                <input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{width:54,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:22,outline:'none',textAlign:'center',fontFamily:'inherit'}}/>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,color:C.muted}}>Eigenes Emoji:</span>
+                <input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{width:50,padding:'4px 8px',borderRadius:6,border:`1px solid ${C.border}`,background:C.card2,color:C.white,fontSize:16,textAlign:'center'}}/>
               </div>
             </div>
+
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               <div>
                 <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>TYP</label>
@@ -114,15 +161,76 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
               <div>
                 <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>STANDORT</label>
                 <select value={locationId} onChange={e=>setLocationId(e.target.value)} style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.card2,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}>
+                  <option value="ALL">🌐 Alle Standorte (Global / ALL)</option>
                   {locs.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
             </div>
           </div>
-          {/* Right: CTA */}
+
+          {/* Right Column */}
           <div>
-            <div style={{background:`${C.purple}11`,border:`1px solid ${C.purple}33`,borderRadius:14,padding:18,marginBottom:14}}>
-              <div style={{fontSize:13,fontWeight:700,marginBottom:14,display:'flex',alignItems:'center',gap:8}}><Link size={15} color={C.purple}/>CTA-Button</div>
+            {/* Status & Schedule Config */}
+            <div style={{background:`${C.purple}11`,border:`1px solid ${C.purple}33`,borderRadius:14,padding:18,marginBottom:16}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                <Sparkles size={15} color={C.purple}/> STATUS & VERÖFFENTLICHUNG
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:14}}>
+                {[
+                  ['draft', '📝 Entwurf', C.muted],
+                  ['scheduled', '📅 Geplant', C.orange],
+                  ['live', '● Sofort Live', C.green],
+                  ['paused', '⏸ Pausiert', C.pink]
+                ].map(([st, label, col]) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setStatus(st)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: status === st ? `1px solid ${col}` : `1px solid ${C.border}`,
+                      background: status === st ? `${col}22` : C.bg,
+                      color: status === st ? col : C.muted,
+                      fontWeight: status === st ? 700 : 400,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Schedule Datetime input */}
+              {status === 'scheduled' && (
+                <div style={{marginTop:10}}>
+                  <label style={{fontSize:11,color:C.orange,display:'block',marginBottom:6,letterSpacing:1,fontWeight:700}}>VERÖFFENTLICHUNGSDATUM & UHRZEIT *</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={e => setScheduledAt(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${C.orange}`,
+                      background: C.bg,
+                      color: C.white,
+                      fontSize: 13,
+                      outline: 'none',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                  <div style={{fontSize:10,color:C.muted,marginTop:4}}>Reel wird zum gewählten Zeitpunkt automatisch live geschaltet.</div>
+                </div>
+              )}
+            </div>
+
+            {/* CTA Config */}
+            <div style={{background:C.card2,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:12,display:'flex',alignItems:'center',gap:8}}><Link size={15} color={C.purple}/>CTA-Button</div>
               <div style={{marginBottom:12}}>
                 <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>BUTTON-TEXT</label>
                 <input value={ctaText} onChange={e=>setCtaText(e.target.value)} placeholder="z.B. Jetzt bestellen" style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}/>
@@ -140,11 +248,12 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
                 <input value={ctaUrl} onChange={e=>setCtaUrl(e.target.value)} placeholder={ctaAction==='phone'?'+49 123 456789':'https://...'} style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}/>
               </div>
             </div>
+
             {/* Preview */}
             <div style={{background:C.card2,borderRadius:12,padding:14,border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:8,letterSpacing:1}}>VORSCHAU</div>
+              <div style={{fontSize:10,color:C.muted,marginBottom:8,letterSpacing:1}}>LIVE VORSCHAU</div>
               <div style={{background:`linear-gradient(160deg,${colorMap[type]||C.purple}44,${C.bg})`,borderRadius:10,padding:14,textAlign:'center'}}>
-                <div style={{fontSize:28,marginBottom:6}}>{emoji}</div>
+                <div style={{fontSize:32,marginBottom:6}}>{emoji}</div>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>{title||'Reel-Titel'}</div>
                 {ctaUrl&&<div style={{fontSize:10,color:C.blue,marginBottom:6,display:'flex',alignItems:'center',justifyContent:'center',gap:4}}><ExternalLink size={9}/>{ctaUrl.replace('https://','')}</div>}
                 <div style={{padding:'8px 0',borderRadius:8,background:grad(colorMap[type]||C.purple,C.pink),fontSize:12,fontWeight:700}}>{ctaText||'Button'} →</div>
@@ -163,77 +272,275 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
   )
 }
 
-// ── Location Modal ────────────────────────────────────────
-function LocationModal({ loc, tenantId, onClose, onSave }) {
-  const [name, setName] = useState(loc?.name||'')
-  const [city, setCity] = useState(loc?.city||'')
-  const save = () => {
-    if (!name.trim()) return
-    onSave({ ...(loc?.id?{id:loc.id}:{}), tenant_id:tenantId, name, city:city||'Dubai', active:loc?.active??true, scans:loc?.scans||0, wr:loc?.wr||0 })
-    onClose()
-  }
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(10px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{background:C.card,border:`1px solid ${C.purple}`,borderRadius:20,padding:28,width:460}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <div style={{fontSize:16,fontWeight:700}}>{loc?.id?'✏️ Standort bearbeiten':'📍 Neuer Standort'}</div>
-          <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer'}}><X size={18}/></button>
-        </div>
-        <div style={{marginBottom:14}}>
-          <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>STANDORT-NAME *</label>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="z.B. Marina Walk"
-            style={{width:'100%',padding:'11px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:14,outline:'none',fontFamily:'inherit'}}/>
-        </div>
-        <div style={{marginBottom:22}}>
-          <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>STADT / BEREICH</label>
-          <input value={city} onChange={e=>setCity(e.target.value)} placeholder="z.B. Dubai Marina"
-            style={{width:'100%',padding:'11px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:14,outline:'none',fontFamily:'inherit'}}/>
-        </div>
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:'11px 0',borderRadius:10,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>Abbrechen</button>
-          <button onClick={save} style={{flex:2,padding:'11px 0',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,cursor:'pointer',fontWeight:700,fontSize:14,fontFamily:'inherit'}}>
-            {loc?.id?'Speichern':'Erstellen & QR generieren'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Sidebar ───────────────────────────────────────────────
 function Sidebar({ page, setPage, open, setOpen, t, user, logout }) {
-  const items = [
-    {id:'overview',icon:<Home size={17}/>},{id:'reels',icon:<Film size={17}/>},{id:'locations',icon:<MapPin size={17}/>},
-    {id:'analytics',icon:<BarChart2 size={17}/>},{id:'ai',icon:<Sparkles size={17}/>,badge:'✨'},{id:'qr',icon:<QrCode size={17}/>},
-    {id:'media',icon:<Library size={17}/>},{id:'company',icon:<Building2 size={17}/>},{id:'settings',icon:<Settings size={17}/>},
+  const nav = useNavigate()
+  
+  const tenantItems = [
+    { id: 'overview', name: 'Übersicht', icon: <Home size={18}/> },
+    { id: 'locations', name: 'Standorte', icon: <MapPin size={18}/> },
+    { id: 'qr', name: 'QR-Codes & Tags', icon: <QrCode size={18}/> },
+    { id: 'media', name: 'Mediathek', icon: <Library size={18}/> },
+    { id: 'analytics', name: 'Analytics', icon: <BarChart2 size={18}/> },
+    { id: 'company', name: 'Firmendaten', icon: <Building2 size={18}/> },
+    { id: 'settings', name: 'Einstellungen', icon: <Settings size={18}/> },
   ]
+
+  const moduleItems = [
+    { id: 'reels', name: 'SCENVY FLOW', sub: 'Reels & Video-Feed', badge: 'CONTENT', icon: <Film size={18}/>, color: '#8B5CF6' },
+    { id: 'menu_generator', name: 'SCENVY MENU', sub: 'Digitale Speisekarten', badge: 'KI SNAP', icon: <Utensils size={18}/>, color: '#F97316' },
+    { id: 'board', name: 'SCENVY BOARD', sub: 'Digital Signage TV', badge: 'DISPLAY', icon: <Tv size={18}/>, color: '#3B82F6' },
+    { id: 'host', name: 'SCENVY HOST', sub: 'Gäste-Concierge', badge: 'SERVICE', icon: <ConciergeBell size={18}/>, color: '#10B981' },
+  ]
+
   return (
-    <div style={{width:open?220:58,background:C.card,borderRight:`1px solid ${C.border}`,flexShrink:0,display:'flex',flexDirection:'column',transition:'width .3s',overflow:'hidden'}}>
-      <div style={{padding:'16px 14px 12px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:open?'flex-start':'center'}}>
-        {open ? <ScenvyLogoFull height={28} /> : <ScenvyLogoIcon size={26} />}
+    <div style={{
+      width: open ? 250 : 68,
+      background: C.card,
+      borderRight: `1px solid ${C.border}`,
+      flexShrink: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'width .3s cubic-bezier(0.16, 1, 0.3, 1)',
+      height: '100vh',
+      overflow: 'hidden',
+      zIndex: 50,
+      boxShadow: '4px 0 24px rgba(0,0,0,0.3)'
+    }}>
+      {/* Top Logo Header */}
+      <div style={{
+        padding: open ? '18px 18px 14px' : '18px 12px 14px',
+        borderBottom: `1px solid ${C.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: open ? 'space-between' : 'center',
+        flexShrink: 0,
+        background: C.bg
+      }}>
+        {open ? <ScenvyLogoFull height={30} tagline={false} /> : <ScenvyLogoIcon size={30} />}
       </div>
-      {open&&(
-        <div style={{padding:'12px 14px',borderBottom:`1px solid ${C.border}`}}>
-          <div style={{fontSize:10,color:C.muted,marginBottom:6,letterSpacing:1}}>TENANT</div>
-          <div style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',background:C.card2,borderRadius:9}}>
-            <div style={{width:28,height:28,borderRadius:6,background:grad(C.purple,C.pink),display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,flexShrink:0}}>{(user?.name||'?')[0]}</div>
-            <div><div style={{fontSize:12,fontWeight:700}}>{user?.tenant?.name||user?.name||'–'}</div><div style={{fontSize:10,color:C.purple}}>{user?.tenant?.plan||'starter'} ✓</div></div>
+
+      {/* Tenant Profile Card */}
+      {open && (
+        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: 'rgba(15,23,42,0.6)' }}>
+          <div style={{ fontSize: 9, color: C.muted, marginBottom: 8, letterSpacing: 1.5, fontWeight: 800 }}>MANDANT / TENANT</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.card2, borderRadius: 12, border: `1px solid ${C.purple}33` }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: grad(C.purple, C.pink), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: C.white, flexShrink: 0, boxShadow: '0 2px 8px rgba(139,92,246,0.3)' }}>
+              {(user?.tenant?.name || user?.name || '?')[0].toUpperCase()}
+            </div>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.tenant?.name || user?.name || 'Scenvy Partner'}
+              </div>
+              <div style={{ fontSize: 10, color: C.purple, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                {(user?.tenant?.plan || 'PRO PLATFORM').toUpperCase()}
+              </div>
+            </div>
           </div>
         </div>
       )}
-      <nav style={{padding:'10px 10px',flex:1}}>
-        {items.map(item=>(
-          <button key={item.id} onClick={()=>setPage(item.id)} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 10px',borderRadius:9,border:'none',cursor:'pointer',background:page===item.id?`${C.purple}22`:'transparent',color:page===item.id?C.white:C.muted,marginBottom:2,justifyContent:open?'flex-start':'center',fontFamily:'inherit'}}>
-            <span style={{color:page===item.id?C.purple:C.muted,flexShrink:0}}>{item.icon}</span>
-            {open&&<><span style={{fontSize:13,fontWeight:page===item.id?600:400,flex:1,textAlign:'left'}}>{t.nav[item.id]}</span>{item.badge&&<span style={{fontSize:9,padding:'2px 6px',borderRadius:10,background:`${C.pink}33`,color:C.pink}}>{item.badge}</span>}</>}
-          </button>
-        ))}
+
+      {/* Scrollable Navigation Area with Custom Scrollbar */}
+      <nav 
+        className="scenvy-sidebar-scroll"
+        style={{
+          padding: '14px 12px',
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20
+        }}
+      >
+        <style>{`
+          .scenvy-sidebar-scroll::-webkit-scrollbar {
+            width: 5px;
+          }
+          .scenvy-sidebar-scroll::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+          }
+          .scenvy-sidebar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.3);
+            border-radius: 10px;
+          }
+          .scenvy-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.7);
+          }
+        `}</style>
+
+        {/* Section 1: Mandant / Tenant Basis */}
+        <div>
+          {open && (
+            <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, letterSpacing: 1.5, padding: '0 8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🏢</span> TENANT PLATTFORM
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {tenantItems.map(item => {
+              const isActive = page === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setPage(item.id)}
+                  title={!open ? item.name : undefined}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: open ? '10px 12px' : '10px 0',
+                    borderRadius: 10,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: isActive ? `${C.purple}22` : 'transparent',
+                    color: isActive ? C.white : C.muted,
+                    justifyContent: open ? 'flex-start' : 'center',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                    borderLeft: isActive ? `3px solid ${C.purple}` : '3px solid transparent'
+                  }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ color: isActive ? C.purple : C.muted, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                    {item.icon}
+                  </span>
+                  {open && (
+                    <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, flex: 1 }}>
+                      {item.name}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Section 2: SCENVY Sub-Brands & Modules */}
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+          {open && (
+            <div style={{ fontSize: 10, color: C.pink, fontWeight: 800, letterSpacing: 1.5, padding: '0 8px 12px', display: 'flex', alignItems: 'center', justifyBetween: 'space-between' }}>
+              <span>🚀 GEBUCHTE MODULE</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {moduleItems.map(item => {
+              const isActive = page === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setPage(item.id)}
+                  title={!open ? `${item.name} (${item.badge})` : undefined}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: open ? '11px 12px' : '11px 0',
+                    borderRadius: 12,
+                    border: `1px solid ${isActive ? `${item.color}66` : 'rgba(255,255,255,0.06)'}`,
+                    cursor: 'pointer',
+                    background: isActive ? `${item.color}22` : C.card2,
+                    color: isActive ? C.white : C.muted,
+                    justifyContent: open ? 'flex-start' : 'center',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    boxShadow: isActive ? `0 4px 16px ${item.color}22` : 'none',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = `${item.color}44`
+                      e.currentTarget.style.transform = 'translateY(-1px)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                      e.currentTarget.style.transform = 'none'
+                    }
+                  }}
+                >
+                  <span style={{ color: item.color, flexShrink: 0, display: 'flex', alignItems: 'center', padding: open ? 0 : '0 12px' }}>
+                    {item.icon}
+                  </span>
+                  {open && (
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.white, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>{item.name}</span>
+                        <span style={{ fontSize: 8, padding: '2px 5px', borderRadius: 4, background: `${item.color}33`, color: item.color, fontWeight: 800 }}>
+                          {item.badge}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.sub}
+                      </div>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </nav>
-      <div style={{padding:'0 10px 12px'}}>
-        <button onClick={logout} style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 10px',borderRadius:9,border:'none',cursor:'pointer',background:'transparent',color:C.muted,justifyContent:open?'flex-start':'center',fontFamily:'inherit'}}>
-          <LogOut size={17}/>{open&&<span style={{fontSize:13}}>{t.logout}</span>}
+
+      {/* Bottom Footer Actions */}
+      <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}`, flexShrink: 0, background: C.bg, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button
+          onClick={logout}
+          title={!open ? t.logout : undefined}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderRadius: 10,
+            border: 'none',
+            cursor: 'pointer',
+            background: 'transparent',
+            color: C.pink,
+            justifyContent: open ? 'flex-start' : 'center',
+            fontFamily: 'inherit',
+            fontWeight: 600,
+            fontSize: 13,
+            transition: 'background 0.15s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = `${C.pink}11`}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <LogOut size={18}/>
+          {open && <span>{t.logout}</span>}
         </button>
-        <button onClick={()=>setOpen(o=>!o)} style={{width:'100%',padding:10,borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',display:'flex',justifyContent:'center',marginTop:8,fontFamily:'inherit'}}><Menu size={16}/></button>
+
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            width: '100%',
+            padding: '9px',
+            borderRadius: 10,
+            border: `1px solid ${C.border}`,
+            background: C.card,
+            color: C.muted,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            fontFamily: 'inherit',
+            fontSize: 12,
+            fontWeight: 700
+          }}
+        >
+          <Menu size={16}/>
+          {open && <span>Sidebar Einklappen</span>}
+        </button>
       </div>
     </div>
   )
@@ -277,7 +584,7 @@ function Overview({ setPage, reels, locs, t }) {
           {reels.slice(0,5).map(r=>(
             <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:`1px solid ${C.border}`}}>
               <div style={{width:34,height:34,borderRadius:8,background:`${r.color||C.purple}28`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,overflow:'hidden',flexShrink:0}}>
-                {r.media_url?<img src={r.media_url} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:8}} alt=""/>:r.emoji||'🎬'}
+                {r.mediaUrl?r.mediaType==='video'?<video src={r.mediaUrl} autoPlay muted loop playsInline style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:8}} />:<img src={r.mediaUrl} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:8}} alt=""/>:r.emoji||'🎬'}
               </div>
               <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{r.title}</div><div style={{fontSize:11,color:C.muted}}>{r.locations?.name||r.loc||'–'}</div></div>
               {pill(r.status==='live'?'● LIVE':r.status?.toUpperCase()||'DRAFT', r.status==='live'?C.green:r.status==='scheduled'?C.orange:C.muted)}
@@ -303,8 +610,131 @@ function Overview({ setPage, reels, locs, t }) {
   )
 }
 
+// ── Module Sub-Header (Second Navigation Row) ─────────────
+function ModuleSubHeader({ activeModule, activeTab, setActiveTab, reelsCount = 0 }) {
+  if (!['reels', 'menu_generator', 'menu', 'board', 'host'].includes(activeModule)) return null
+
+  let config = null
+  if (activeModule === 'reels') {
+    config = {
+      badge: '🎬 SCENVY FLOW',
+      badgeColor: C.purple,
+      tabs: [
+        { id: 'feed', label: '🎬 Reel Feed & Galerie', badge: reelsCount ? `${reelsCount}` : null },
+        { id: 'ai_prompter', label: '✨ KI Prompter & Generator' },
+        { id: 'planner', label: '📅 Reel Planer & Timetable' },
+        { id: 'settings', label: '⚙️ Einstellungen' }
+      ]
+    }
+  } else if (activeModule === 'menu_generator' || activeModule === 'menu') {
+    config = {
+      badge: '🍽️ SCENVY MENU',
+      badgeColor: C.orange,
+      tabs: [
+        { id: 'create', label: '🚀 SNAP KI Speisekarte' },
+        { id: 'list', label: '📋 Digitale Menüs' },
+        { id: 'design', label: '🎨 Branding & Templates' },
+        { id: 'settings', label: '⚙️ Einstellungen' }
+      ]
+    }
+  } else if (activeModule === 'board') {
+    config = {
+      badge: '📺 SCENVY BOARD',
+      badgeColor: C.blue,
+      tabs: [
+        { id: 'overview', label: '📺 Screen Übersicht' },
+        { id: 'playlists', label: '⏱ Signage Playlists' },
+        { id: 'settings', label: '⚙️ Display Pairings' }
+      ]
+    }
+  } else if (activeModule === 'host') {
+    config = {
+      badge: '🏨 SCENVY HOST',
+      badgeColor: C.green,
+      tabs: [
+        { id: 'overview', label: '🛎️ Tisch-Ruf & Services' },
+        { id: 'guestbook', label: '📖 Digitale Gästemappe' },
+        { id: 'reviews', label: '⭐ Feedback & Bewertungen' }
+      ]
+    }
+  }
+
+  if (!config) return null
+
+  return (
+    <div style={{
+      background: 'rgba(15, 23, 42, 0.9)',
+      backdropFilter: 'blur(12px)',
+      borderBottom: `1px solid ${C.border}`,
+      padding: '10px 28px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 16,
+      flexShrink: 0,
+      zIndex: 20
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 900,
+          color: config.badgeColor,
+          background: `${config.badgeColor}22`,
+          padding: '5px 12px',
+          borderRadius: 8,
+          border: `1px solid ${config.badgeColor}44`,
+          letterSpacing: 1
+        }}>
+          {config.badge}
+        </span>
+        <div style={{ height: 16, width: 1, background: C.border }} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {config.tabs.map(tab => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 9,
+                  border: isActive ? `1px solid ${config.badgeColor}66` : '1px solid transparent',
+                  background: isActive ? `${config.badgeColor}25` : 'transparent',
+                  color: isActive ? C.white : C.muted,
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span style={{
+                    fontSize: 10,
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                    background: isActive ? config.badgeColor : C.card2,
+                    color: C.white,
+                    fontWeight: 800
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Reels Page ────────────────────────────────────────────
-function ReelsPage({ reels, locs, tenantId, notify, t }) {
+function ReelsPage({ reels, locs, tenantId, notify, t, subTab = 'feed', setSubTab }) {
   const [filter,   setFilter]   = useState('all')
   const [editReel, setEditReel] = useState(null)
   const saveReel   = useSaveReel()
@@ -323,203 +753,207 @@ function ReelsPage({ reels, locs, tenantId, notify, t }) {
     catch { notify('❌ Fehler beim Löschen') }
   }
 
-  const handleToggle = async (r) => {
-    try { await saveReel.mutateAsync({ reel:{...r, status:r.status==='live'?'draft':'live'}, tenantId }); notify('Status aktualisiert') }
-    catch { notify('❌ Fehler') }
+  const handleUpdateStatus = async (r, newStatus) => {
+    try {
+      await saveReel.mutateAsync({ reel: { ...r, status: newStatus }, tenantId })
+      notify(`Status auf "${newStatus.toUpperCase()}" geändert`)
+    } catch {
+      notify('❌ Fehler beim Aktualisieren')
+    }
   }
 
-  return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:24}}>
-        <div><div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>CONTENT</div><div style={{fontSize:24,fontWeight:800}}>Reels</div></div>
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={()=>setEditReel({})} style={{padding:'9px 16px',borderRadius:9,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,cursor:'pointer',fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:7,fontFamily:'inherit'}}><Sparkles size={14}/>KI generieren</button>
-          <button onClick={()=>setEditReel({})} style={{padding:'9px 16px',borderRadius:9,border:'none',background:C.purple,color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:7,fontFamily:'inherit'}}><Plus size={14}/>Reel erstellen</button>
+  if (subTab === 'ai_prompter') {
+    return <AIGenerator tenantId={tenantId} locs={locs} notify={notify} />
+  }
+
+  if (subTab === 'planner') {
+    const scheduled = reels.filter(r => r.status === 'scheduled')
+    return (
+      <div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+          <div>
+            <div style={{fontSize:11,color:C.pink,fontWeight:800,letterSpacing:2,marginBottom:4}}>CONTENT PLANER</div>
+            <div style={{fontSize:24,fontWeight:900}}>📅 Sende-Planer & Timetable</div>
+            <div style={{fontSize:13,color:C.muted,marginTop:4}}>Übersicht aller geplanten und aktiven Video-Reels nach Veröffentlichungsdatum.</div>
+          </div>
+          <button onClick={() => setEditReel({ status: 'scheduled' })} style={{padding:'9px 18px',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+            <Plus size={16}/> Neuer Plan-Slot
+          </button>
+        </div>
+
+        {scheduled.length === 0 ? (
+          <div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}>
+            <Film size={40} color={C.dim} style={{marginBottom:12}}/>
+            <div style={{fontSize:16,fontWeight:700,color:C.white}}>Aktuell keine geplanten Reels</div>
+            <div style={{fontSize:13,color:C.muted,marginTop:4,marginBottom:16}}>Plane Aktionen, Happy Hours & Event-Ankündigungen im Voraus.</div>
+            <button onClick={() => setEditReel({ status: 'scheduled' })} style={{padding:'8px 16px',borderRadius:8,background:C.purple,color:C.white,border:'none',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+              Reel jetzt einplanen
+            </button>
+          </div>
+        ) : (
+          <div style={{display:'grid',gap:14}}>
+            {scheduled.map(r => (
+              <div key={r.id} style={{background:C.card,borderRadius:16,padding:20,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
+                <div style={{display:'flex',alignItems:'center',gap:16}}>
+                  <div style={{width:54,height:54,borderRadius:12,background:`${r.color||C.purple}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>
+                    {r.emoji||'🎬'}
+                  </div>
+                  <div>
+                    <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{r.title}</div>
+                    <div style={{fontSize:12,color:C.orange,fontWeight:700,display:'flex',alignItems:'center',gap:6}}>
+                      📅 Geplant für: {r.scheduledAt || r.scheduled_at ? new Date(r.scheduledAt || r.scheduled_at).toLocaleString('de-DE') : 'Datum nicht festgelegt'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <button onClick={() => handleUpdateStatus(r, 'live')} style={{padding:'7px 14px',borderRadius:8,border:'none',background:`${C.green}22`,color:C.green,fontWeight:700,fontSize:12,cursor:'pointer'}}>
+                    🚀 Sofort Live
+                  </button>
+                  <button onClick={() => setEditReel(r)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.white,fontSize:12,cursor:'pointer'}}>
+                    ✏️ Datum ändern
+                  </button>
+                  <button onClick={() => handleDelete(r.id)} style={{padding:'7px 10px',borderRadius:8,border:'none',background:`${C.pink}22`,color:C.pink,fontSize:12,cursor:'pointer'}}>
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {editReel!==null&&<ReelModal reel={Object.keys(editReel).length?editReel:null} locs={locs} tenantId={tenantId} onClose={()=>setEditReel(null)} onSave={handleSave} notify={notify}/>}
+      </div>
+    )
+  }
+
+  if (subTab === 'settings') {
+    return (
+      <div style={{maxWidth:600}}>
+        <div style={{fontSize:11,color:C.pink,fontWeight:800,letterSpacing:2,marginBottom:4}}>EINSTELLUNGEN</div>
+        <div style={{fontSize:24,fontWeight:900,marginBottom:20}}>⚙️ SCENVY FLOW Modul-Konfiguration</div>
+        <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Autoplay & Player Verhalten</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16}}>Konfiguriere, wie Video-Reels auf den Smartphones der Gäste nach dem QR-Scan abgespielt werden.</div>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <label style={{display:'flex',alignItems:'center',gap:10,fontSize:13,cursor:'pointer'}}>
+              <input type="checkbox" defaultChecked /> Auto-Mute Ton standardmäßig aktivieren
+            </label>
+            <label style={{display:'flex',alignItems:'center',gap:10,fontSize:13,cursor:'pointer'}}>
+              <input type="checkbox" defaultChecked /> Endlose Video-Schleife (Infinite Loop)
+            </label>
+            <label style={{display:'flex',alignItems:'center',gap:10,fontSize:13,cursor:'pointer'}}>
+              <input type="checkbox" defaultChecked /> Swipe-Geste zum nächsten Reel erlauben
+            </label>
+          </div>
         </div>
       </div>
-      <div style={{display:'flex',gap:8,marginBottom:20}}>
-        {['all','live','scheduled','draft'].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{padding:'6px 15px',borderRadius:8,border:'none',cursor:'pointer',background:filter===f?C.purple:C.card,color:filter===f?C.white:C.muted,fontSize:13,fontWeight:filter===f?600:400,textTransform:'capitalize',fontFamily:'inherit'}}>
-            {f==='all'?'Alle':f==='live'?'Live':f==='scheduled'?'Geplant':'Entwurf'} ({f==='all'?reels.length:reels.filter(r=>r.status===f).length})
+    )
+  }
+
+  // Default 'feed' view
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <div><div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>CONTENT ENGINE</div><div style={{fontSize:24,fontWeight:800}}>Reels Galerie</div></div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={() => setSubTab ? setSubTab('ai_prompter') : setEditReel({})} style={{padding:'9px 16px',borderRadius:9,border:`1px solid ${C.purple}`,background:`${C.purple}22`,color:C.purple,cursor:'pointer',fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:7,fontFamily:'inherit'}}>
+            <Sparkles size={14}/>KI Prompter & Generieren
+          </button>
+          <button onClick={()=>setEditReel({})} style={{padding:'9px 16px',borderRadius:9,border:'none',background:C.purple,color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:7,fontFamily:'inherit'}}>
+            <Plus size={14}/>Reel manuell erstellen
+          </button>
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+        {[
+          ['all', 'Alle Reels'],
+          ['live', '● Live'],
+          ['scheduled', '📅 Geplant'],
+          ['draft', '📝 Entwurf'],
+          ['paused', '⏸ Pausiert']
+        ].map(([f, label]) => (
+          <button key={f} onClick={()=>setFilter(f)} style={{padding:'6px 15px',borderRadius:8,border:'none',cursor:'pointer',background:filter===f?C.purple:C.card,color:filter===f?C.white:C.muted,fontSize:13,fontWeight:filter===f?600:400,fontFamily:'inherit'}}>
+            {label} ({f==='all'?reels.length:reels.filter(r=>r.status===f).length})
           </button>
         ))}
       </div>
-      {shown.length===0 && <div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}><Film size={40} color={C.dim} style={{marginBottom:12}}/><div style={{fontSize:16,color:C.muted}}>Noch keine Reels hier.</div></div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16}}>
+
+      {shown.length===0 && (
+        <div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}>
+          <Film size={40} color={C.dim} style={{marginBottom:12}}/>
+          <div style={{fontSize:16,color:C.muted}}>Keine Reels in dieser Ansicht.</div>
+        </div>
+      )}
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:18}}>
         {shown.map(r=>(
-          <div key={r.id} style={{background:C.card,borderRadius:16,overflow:'hidden',border:`1px solid ${C.border}`}}>
-            <div style={{height:140,background:r.media_url?'transparent':`linear-gradient(135deg,${r.color||C.purple}44,${C.bg})`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
-              {r.media_url?<img src={r.media_url} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<div style={{fontSize:42}}>{r.emoji||'🎬'}</div>}
-              <div style={{position:'absolute',top:8,left:8}}>{pill(r.status==='live'?'● LIVE':(r.status||'DRAFT').toUpperCase(),r.status==='live'?C.green:r.status==='scheduled'?C.orange:C.muted)}</div>
-              <div style={{position:'absolute',top:8,right:8}}>{pill(r.type||'offer',r.color||C.purple)}</div>
-              {r.media_url&&<div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,transparent 50%,rgba(0,0,0,.5))'}}/>}
+          <div key={r.id} style={{background:C.card,borderRadius:18,overflow:'hidden',border:`1px solid ${C.border}`,boxShadow:'0 4px 20px rgba(0,0,0,0.25)'}}>
+            <div style={{height:160,background:r.mediaUrl?'transparent':`linear-gradient(135deg,${r.color||C.purple}44,${C.bg})`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
+              {r.mediaUrl ? (
+                r.mediaType==='video'||r.mediaUrl.includes('.mp4')?
+                  <video src={r.mediaUrl} autoPlay muted loop playsInline style={{width:'100%',height:'100%',objectFit:'cover'}} />:
+                  <img src={r.mediaUrl} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>
+              ) : (
+                <div style={{fontSize:48}}>{r.emoji||'🎬'}</div>
+              )}
+
+              {/* Status Pill Badge */}
+              <div style={{position:'absolute',top:10,left:10}}>
+                {r.status==='live' && pill('● LIVE', C.green)}
+                {r.status==='scheduled' && pill(`📅 GEPLANT${r.scheduledAt||r.scheduled_at?': '+new Date(r.scheduledAt||r.scheduled_at).toLocaleDateString('de-DE'):''}`, C.orange)}
+                {r.status==='draft' && pill('📝 ENTWURF', C.muted)}
+                {r.status==='paused' && pill('⏸ PAUSIERT', C.pink)}
+              </div>
+
+              <div style={{position:'absolute',top:10,right:10}}>{pill((r.type||'offer').toUpperCase(), r.color||C.purple)}</div>
+              {r.mediaUrl&&<div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,transparent 40%,rgba(0,0,0,.75))'}}/>}
             </div>
-            <div style={{padding:14}}>
-              <div style={{fontSize:14,fontWeight:700,marginBottom:3}}>{r.title}</div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:4}}>📍 {r.locations?.name||r.loc||'–'}</div>
-              {r.cta_url&&<div style={{fontSize:10,color:C.blue,marginBottom:8,display:'flex',alignItems:'center',gap:3}}><ExternalLink size={9}/><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}}>{r.cta_url}</span></div>}
-              {r.status==='live'&&(
-                <div style={{display:'flex',gap:14,marginBottom:12}}>
-                  <div><div style={{fontSize:16,fontWeight:800}}>{(r.views||0).toLocaleString()}</div><div style={{fontSize:10,color:C.muted}}>Views</div></div>
-                  <div><div style={{fontSize:16,fontWeight:800,color:C.pink}}>{r.ctr||0}%</div><div style={{fontSize:10,color:C.muted}}>CTR</div></div>
-                  <div><div style={{fontSize:12,fontWeight:700,color:C.blue}}>{r.cta}</div><div style={{fontSize:10,color:C.muted}}>CTA</div></div>
+
+            <div style={{padding:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{fontSize:20}}>{r.emoji||'🎬'}</span>
+                <span style={{fontSize:15,fontWeight:800}}>{r.title}</span>
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📍 {r.locationId==='ALL'||r.location_id==='ALL'||!r.location_id ? '🌐 Alle Standorte (Global)' : (r.locations?.name||r.loc||'Standort')}</div>
+
+              {r.status==='scheduled' && (
+                <div style={{fontSize:11,color:C.orange,fontWeight:700,marginBottom:10,background:`${C.orange}15`,padding:'4px 8px',borderRadius:6}}>
+                  📅 Sendezeit: {r.scheduledAt || r.scheduled_at ? new Date(r.scheduledAt || r.scheduled_at).toLocaleString('de-DE') : 'Nicht gewählt'}
                 </div>
               )}
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>handleToggle(r)} style={{flex:1,padding:'7px 0',borderRadius:8,border:'none',cursor:'pointer',background:r.status==='live'?`${C.orange}22`:`${C.green}22`,color:r.status==='live'?C.orange:C.green,fontSize:12,fontWeight:600,fontFamily:'inherit'}}>
-                  {r.status==='live'?'Pausieren':'Veröffentlichen'}
+
+              <div style={{display:'flex',gap:6,marginTop:12}}>
+                {r.status === 'live' ? (
+                  <button onClick={()=>handleUpdateStatus(r, 'paused')} style={{flex:1,padding:'7px 0',borderRadius:8,border:'none',cursor:'pointer',background:`${C.pink}22`,color:C.pink,fontSize:12,fontWeight:700,fontFamily:'inherit'}}>
+                    ⏸ Pausieren
+                  </button>
+                ) : (
+                  <button onClick={()=>handleUpdateStatus(r, 'live')} style={{flex:1,padding:'7px 0',borderRadius:8,border:'none',cursor:'pointer',background:`${C.green}22`,color:C.green,fontSize:12,fontWeight:700,fontFamily:'inherit'}}>
+                    🚀 Sofort Live
+                  </button>
+                )}
+
+                <button onClick={()=>setEditReel(r)} style={{width:36,height:36,borderRadius:8,border:`1px solid ${C.border}`,cursor:'pointer',background:C.bg,color:C.blue,display:'flex',alignItems:'center',justifyContent:'center'}} title="Bearbeiten">
+                  <Edit2 size={14}/>
                 </button>
-                <button onClick={()=>setEditReel(r)} style={{width:34,height:34,borderRadius:8,border:'none',cursor:'pointer',background:`${C.blue}22`,color:C.blue,display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={13}/></button>
-                <button onClick={()=>handleDelete(r.id)} style={{width:34,height:34,borderRadius:8,border:'none',cursor:'pointer',background:`${C.pink}22`,color:C.pink,display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
+                <button onClick={()=>handleDelete(r.id)} style={{width:36,height:36,borderRadius:8,border:`1px solid ${C.border}`,cursor:'pointer',background:C.bg,color:C.pink,display:'flex',alignItems:'center',justifyContent:'center'}} title="Löschen">
+                  <Trash2 size={14}/>
+                </button>
               </div>
             </div>
           </div>
         ))}
       </div>
+
       {editReel!==null&&<ReelModal reel={Object.keys(editReel).length?editReel:null} locs={locs} tenantId={tenantId} onClose={()=>setEditReel(null)} onSave={handleSave} notify={notify}/>}
-    </div>
-  )
-}
-
-// ── Locations Page ────────────────────────────────────────
-function LocationsPage({ locs, tenantId, notify }) {
-  const [editLoc, setEditLoc] = useState(null)
-  const saveLoc   = useSaveLocation()
-  const deleteLoc = useDeleteLocation()
-
-  const handleSave = async (data) => {
-    try { await saveLoc.mutateAsync({ location:data, tenantId }); notify(data.id?'✅ Standort aktualisiert':'📍 Standort erstellt — QR generiert!') }
-    catch(e) { notify('❌ ' + e.message) }
-    setEditLoc(null)
-  }
-
-  const handleToggle = async (l) => {
-    try { await saveLoc.mutateAsync({ location:{...l,active:!l.active}, tenantId }); notify('Status aktualisiert') }
-    catch { notify('❌ Fehler') }
-  }
-
-  const handleDelete = async (id) => {
-    try { await deleteLoc.mutateAsync({ id, tenantId }); notify('Standort gelöscht') }
-    catch(e) { notify('❌ ' + e.message) }
-  }
-
-  const copy = async (id) => { await copyToClipboard(`https://app.scenvy.de/l/${id}`); notify('✅ URL kopiert!') }
-  const dl   = async (l)  => { notify('⏳ Wird heruntergeladen...'); await downloadQR(l.id,l.name); notify('✅ QR gespeichert!') }
-
-  return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:24}}>
-        <div><div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>VERWALTUNG</div><div style={{fontSize:24,fontWeight:800}}>Standorte</div></div>
-        <button onClick={()=>setEditLoc({})} style={{padding:'9px 16px',borderRadius:9,border:'none',background:C.purple,color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,display:'flex',alignItems:'center',gap:7,fontFamily:'inherit'}}><Plus size={14}/>Standort hinzufügen</button>
-      </div>
-      {locs.length===0&&<div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}><MapPin size={40} color={C.dim} style={{marginBottom:12}}/><div style={{fontSize:16,color:C.muted}}>Noch keine Standorte. Füge deinen ersten hinzu!</div></div>}
-      <div style={{display:'grid',gap:14}}>
-        {locs.map(l=>(
-          <div key={l.id} style={{background:C.card,borderRadius:16,padding:20,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:20}}>
-            <div style={{width:80,height:80,borderRadius:12,background:C.white,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden',cursor:'pointer'}} onClick={()=>dl(l)}>
-              <img src={qrImageUrl(l.id,80)} alt="QR" style={{width:70,height:70}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-                <span style={{fontSize:15,fontWeight:700}}>{l.name}</span>
-                <div style={{width:8,height:8,borderRadius:'50%',background:l.active?C.green:C.dim}}/>
-                <span style={{fontSize:11,color:l.active?C.green:C.muted}}>{l.active?'Aktiv':'Inaktiv'}</span>
-              </div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:9}}>📍 {l.city}</div>
-              <div style={{display:'inline-flex',alignItems:'center',gap:6,padding:'5px 10px',background:C.card2,borderRadius:7,fontSize:11,color:C.muted,cursor:'pointer'}} onClick={()=>copy(l.id)}>
-                🔗 app.scenvy.de/l/{l.id.slice(0,8)}...
-                <Copy size={11} color={C.purple}/>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:20,textAlign:'center'}}>
-              <div><div style={{fontSize:20,fontWeight:800}}>{(l.scans||0).toLocaleString()}</div><div style={{fontSize:11,color:C.muted}}>Scans</div></div>
-              <div><div style={{fontSize:20,fontWeight:800,color:l.wr>0?C.pink:C.dim}}>{l.wr>0?`${l.wr}%`:'—'}</div><div style={{fontSize:11,color:C.muted}}>Watch Rate</div></div>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:7}}>
-              <button onClick={()=>setEditLoc(l)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${C.blue}`,background:`${C.blue}11`,color:C.blue,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}><Edit2 size={11}/>Bearbeiten</button>
-              <button onClick={()=>handleToggle(l)} style={{padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',background:l.active?`${C.orange}22`:`${C.green}22`,color:l.active?C.orange:C.green,fontSize:12,fontWeight:600,fontFamily:'inherit'}}>
-                {l.active?'Deaktivieren':'Aktivieren'}
-              </button>
-              <button onClick={()=>dl(l)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:12,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}><Download size={11}/>QR Download</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {editLoc!==null&&<LocationModal loc={Object.keys(editLoc).length?editLoc:null} tenantId={tenantId} onClose={()=>setEditLoc(null)} onSave={handleSave}/>}
-    </div>
-  )
-}
-
-// ── QR Page ───────────────────────────────────────────────
-function QRPage({ locs, notify }) {
-  const copy = async (id) => { await copyToClipboard(`https://app.scenvy.de/l/${id}`); notify('✅ URL kopiert!') }
-  const dl   = async (l)  => { notify('⏳ Wird heruntergeladen...'); await downloadQR(l.id,l.name); notify('✅ QR gespeichert!') }
-  return (
-    <div>
-      <div style={{marginBottom:24}}>
-        <div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>QR-CODES</div>
-        <div style={{fontSize:24,fontWeight:800}}>QR-Code Verwaltung</div>
-        <div style={{fontSize:13,color:C.muted,marginTop:4}}>Jeder Standort hat eine eigene URL und einen eigenen QR-Code.</div>
-      </div>
-      {locs.length===0&&<div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}><QrCode size={40} color={C.dim} style={{marginBottom:12}}/><div style={{fontSize:16,color:C.muted}}>Füge zuerst Standorte hinzu.</div></div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:20}}>
-        {locs.map(l=>(
-          <div key={l.id} style={{background:C.card,borderRadius:20,padding:28,border:`1px solid ${C.border}`,display:'flex',gap:24,alignItems:'center'}}>
-            <div style={{background:C.white,borderRadius:14,padding:10,flexShrink:0}}>
-              <img src={qrImageUrl(l.id,160)} alt="QR" style={{width:160,height:160,display:'block'}}/>
-              <div style={{textAlign:'center',fontSize:10,fontWeight:800,color:C.bg,marginTop:6,letterSpacing:2}}>SCENVY</div>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:17,fontWeight:800,marginBottom:4}}>{l.name}</div>
-              <div style={{fontSize:13,color:C.muted,marginBottom:12}}>📍 {l.city}</div>
-              <div style={{fontSize:11,color:C.blue,marginBottom:16,display:'flex',alignItems:'center',gap:5}}><Globe size={11}/>app.scenvy.de/l/{l.id.slice(0,8)}...</div>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>dl(l)} style={{flex:1,padding:'9px 0',borderRadius:9,border:'none',background:grad(C.purple,C.pink),color:C.white,cursor:'pointer',fontWeight:600,fontSize:13,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}><Download size={14}/>Download</button>
-                <button onClick={()=>copy(l.id)} style={{flex:1,padding:'9px 0',borderRadius:9,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:13,fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}><Copy size={13}/>URL kopieren</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Analytics ─────────────────────────────────────────────
-function Analytics({ tenantId }) {
-  const { data: analytics, isLoading } = useAnalyticsSummary(tenantId)
-  const chartData = analytics?.chart || []
-  return (
-    <div>
-      <div style={{marginBottom:24}}><div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>INSIGHTS</div><div style={{fontSize:24,fontWeight:800}}>Analytics</div></div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
-        {[['Scans (7 Tage)',analytics?.totalScans||0,'+18%',C.purple],['Ø Watch-Time','—','',C.pink],['Conversion','—','',C.green]].map(([l,v,d,c],i)=>(
-          <div key={i} style={{background:C.card,borderRadius:14,padding:18,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:10}}>{l}</div>
-            <div style={{fontSize:26,fontWeight:800}}>{isLoading?'...' : v}</div>
-            {d&&<div style={{fontSize:12,color:C.green,marginTop:4}}>{d} vs. Vorwoche</div>}
-          </div>
-        ))}
-      </div>
-      <div style={{background:C.card,borderRadius:16,padding:20,border:`1px solid ${C.border}`}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:16}}>Scans pro Woche</div>
-        {isLoading ? <div style={{height:200,display:'flex',alignItems:'center',justifyContent:'center',color:C.muted}}>Lade Daten...</div> :
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={chartData}>
-            <XAxis dataKey="day" tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false}/>
-            <Tooltip contentStyle={{background:C.card2,border:`1px solid ${C.border}`,borderRadius:8,color:C.white}}/>
-            <Bar dataKey="scans" fill={C.purple} radius={[4,4,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>}
-      </div>
     </div>
   )
 }
 
 // ── AI Generator ──────────────────────────────────────────
 function AIGenerator({ tenantId, locs, notify }) {
-  const [inputMode,   setInputMode]   = useState('text')
+  const [inputMode,   setInputMode]   = useState('text') // 'text' | 'image' | 'video'
   const [form,        setForm]        = useState({ venue:'', offer:'', type:'offer', tone:'exciting', ctaUrl:'' })
   const [locationId,  setLocationId]  = useState(locs[0]?.id||'')
   const [imgPreview,  setImgPreview]  = useState(null)
@@ -527,8 +961,21 @@ function AIGenerator({ tenantId, locs, notify }) {
   const [result,      setResult]      = useState(null)
   const [loading,     setLoading]     = useState(false)
   const [uploading,   setUploading]   = useState(false)
+
+  // Status and scheduling choice for AI generated reel
+  const [saveStatus,   setSaveStatus]   = useState('draft')
+  const [scheduledAt,  setScheduledAt]  = useState('')
+
   const fileRef = useRef()
   const saveReel = useSaveReel()
+
+  const PRESET_PROMPTS = [
+    { label: '🍸 Signature Cocktail Happy Hour', text: '50% auf alle Signature Cocktails von 18 bis 20 Uhr mit Live-DJ' },
+    { label: '🥩 Sizzling Tomahawk Steak', text: 'Zartes Angus Ribeye Steak frisch vom Grill serviert mit Trüffel-Pommes' },
+    { label: '🥐 Sunday Luxury Brunch', text: 'Exklusiver All-You-Can-Eat Sonntagsbrunch inklusive Champagner-Empfang' },
+    { label: '🎉 Weekend DJ Party Night', text: 'Weekend Vibes mit DJ Beats, Cocktails und Shisha auf der Rooftop Terrasse' },
+    { label: '🍣 Sushi Omakase Experience', text: 'Frisches Omakase Sushi Set zubereitet vom Meisterköche-Team' }
+  ]
 
   const handleImgFile = async (e) => {
     const f = e.target.files?.[0]; if (!f) return
@@ -540,17 +987,38 @@ function AIGenerator({ tenantId, locs, notify }) {
 
   const generate = async () => {
     const offerText = inputMode==='image' ? imgDesc : form.offer
-    if (!offerText.trim()) { notify('Bitte Beschreibung eingeben'); return }
+    if (!offerText.trim()) { notify('Bitte Beschreibung oder Prompt eingeben'); return }
     const loc = locs.find(l=>l.id===locationId)
     setLoading(true); setResult(null)
     try {
-      const res = await fetch('/api/ai/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...form, venue:loc?.name||form.venue, offer:offerText }) })
+      const res = await fetch('/api/ai/generate', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ ...form, venue:loc?.name||form.venue, offer:offerText, isVideo: inputMode==='video' })
+      })
       const data = await res.json()
-      if (data.imageUrl && !imgPreview) setImgPreview(data.imageUrl)
+      const media = data.imageUrl || data.mediaUrl
+      if (media) setImgPreview(media)
       setResult(data)
     } catch {
       const moodMap={offer:'purple',event:'pink',menu:'blue',promo:'orange'}
-      setResult({ hook:'TONIGHT ONLY 🔥', headline:offerText.length>40?offerText.slice(0,40)+'…':offerText, subtext:'Exklusiv für dich — jetzt sichern!', cta:'Jetzt sichern', hashtags:['dubai',form.type,'scenvy'], emoji:'🍹', urgency:'Nur für begrenzte Zeit', colorMood:moodMap[form.type]||'purple' })
+      const fallbackImg = 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop'
+      const fallbackVid = 'https://assets.mixkit.co/videos/preview/mixkit-barman-preparing-a-cocktail-in-a-glass-42867-large.mp4'
+      const media = inputMode === 'video' ? fallbackVid : fallbackImg
+      setImgPreview(media)
+      setResult({
+        hook:'JETZT ERLEBEN 🔥',
+        headline:offerText.length>40?offerText.slice(0,40)+'…':offerText,
+        subtext:'Exklusiv für dich vorbereitet — jetzt entdecken!',
+        cta:'Jetzt reservieren',
+        hashtags:['scenvy',form.type,'gastronomie'],
+        emoji: inputMode === 'video' ? '🎥' : '🍸',
+        urgency:'Nur für begrenzte Zeit',
+        colorMood:moodMap[form.type]||'purple',
+        imageUrl: media,
+        mediaUrl: media,
+        mediaType: inputMode === 'video' ? 'video' : 'image'
+      })
     }
     setLoading(false)
   }
@@ -559,8 +1027,26 @@ function AIGenerator({ tenantId, locs, notify }) {
     const cm={purple:C.purple,pink:C.pink,blue:C.blue,orange:C.orange,green:C.green}
     const loc = locs.find(l=>l.id===locationId)
     try {
-      await saveReel.mutateAsync({ reel:{ tenant_id:tenantId, location_id:locationId, title:result.headline, type:form.type, status:'draft', color:cm[result.colorMood]||C.purple, emoji:result.emoji, cta:result.cta, cta_url:form.ctaUrl, cta_action:'url', media_url:imgPreview, media_type:'image', loc:loc?.name||'' }, tenantId })
-      notify('✨ KI-Reel gespeichert!')
+      await saveReel.mutateAsync({
+        reel:{
+          tenant_id:tenantId,
+          location_id:locationId,
+          title:result.headline,
+          type:form.type,
+          status:saveStatus,
+          scheduledAt: scheduledAt,
+          color:cm[result.colorMood]||C.purple,
+          emoji:result.emoji,
+          cta:result.cta,
+          cta_url:form.ctaUrl,
+          cta_action:'url',
+          mediaUrl:imgPreview,
+          media_type: inputMode==='video' ? 'video' : 'image',
+          loc:loc?.name||''
+        },
+        tenantId
+      })
+      notify(`✨ KI-Reel als "${saveStatus.toUpperCase()}" gespeichert!`)
       setResult(null); setImgPreview(null); setImgDesc(''); setForm(f=>({...f,offer:'',ctaUrl:''}))
     } catch(e) { notify('❌ ' + e.message) }
   }
@@ -569,42 +1055,84 @@ function AIGenerator({ tenantId, locs, notify }) {
 
   return (
     <div>
-      <div style={{marginBottom:20}}><div style={{fontSize:11,color:C.pink,fontWeight:700,letterSpacing:2,marginBottom:6}}>GOOGLE GEMINI KI</div><div style={{fontSize:24,fontWeight:800}}>Reel Generator ✨</div><div style={{fontSize:13,color:C.muted,marginTop:4}}>Beschreibe dein Angebot oder lade ein Bild hoch → Google Gemini KI erstellt den fertigen Reel samt KI-Bild.</div></div>
-      <div style={{display:'flex',background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:4,marginBottom:20,width:'fit-content'}}>
-        {[['text','✏️ Text'],['image','📸 Bild + Text']].map(([m,label])=>(
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:11,color:C.pink,fontWeight:800,letterSpacing:2,marginBottom:4}}>GOOGLE GEMINI KI</div>
+        <div style={{fontSize:24,fontWeight:900}}>Reel Generator & KI Prompter ✨</div>
+        <div style={{fontSize:13,color:C.muted,marginTop:4}}>
+          Beschreibe dein Angebot oder lade ein Bild/Video hoch → Google Gemini KI generiert das komplette Reel inklusive fotorealistischem KI-Bild oder Video-Visual.
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:6,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:4,marginBottom:20,width:'fit-content'}}>
+        {[
+          ['text','✏️ Prompt / Beschreibung'],
+          ['video','🎥 KI Video Reel'],
+          ['image','📸 Foto Upload']
+        ].map(([m,label])=>(
           <button key={m} onClick={()=>setInputMode(m)} style={{padding:'8px 18px',borderRadius:9,border:'none',cursor:'pointer',background:inputMode===m?C.purple:'transparent',color:inputMode===m?C.white:C.muted,fontWeight:inputMode===m?700:400,fontSize:13,fontFamily:'inherit'}}>{label}</button>
         ))}
       </div>
+
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
         <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:18}}>Eingabe</div>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:16}}>1. Eingabe & KI Prompter</div>
+
           {inputMode==='image'&&(
-            <>
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>BILD HOCHLADEN</label>
-                <div onClick={()=>fileRef.current?.click()} style={{border:`2px dashed ${imgPreview?C.purple:C.border}`,borderRadius:12,overflow:'hidden',cursor:'pointer',minHeight:100,display:'flex',alignItems:'center',justifyContent:'center',background:`${C.purple}08`,position:'relative'}}>
-                  {uploading ? <div style={{textAlign:'center'}}><RefreshCw size={22} color={C.purple} style={{animation:'spin 1s linear infinite'}}/></div>
-                    : imgPreview ? <img src={imgPreview} style={{width:'100%',maxHeight:140,objectFit:'cover'}} alt=""/>
-                    : <div style={{textAlign:'center',padding:16}}><Image size={24} color={C.purple} style={{marginBottom:6}}/><div style={{fontSize:12,color:C.muted}}>Foto hochladen (wird in Supabase gespeichert)</div></div>}
-                  <input ref={fileRef} type="file" accept="image/*" onChange={handleImgFile} style={{display:'none'}}/>
-                </div>
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>BILD HOCHLADEN</label>
+              <div onClick={()=>fileRef.current?.click()} style={{border:`2px dashed ${imgPreview?C.purple:C.border}`,borderRadius:12,overflow:'hidden',cursor:'pointer',minHeight:100,display:'flex',alignItems:'center',justifyContent:'center',background:`${C.purple}08`,position:'relative'}}>
+                {uploading ? <div style={{textAlign:'center'}}><RefreshCw size={22} color={C.purple} style={{animation:'spin 1s linear infinite'}}/></div>
+                  : imgPreview ? <img src={imgPreview} style={{width:'100%',maxHeight:140,objectFit:'cover'}} alt=""/>
+                  : <div style={{textAlign:'center',padding:16}}><Image size={24} color={C.purple} style={{marginBottom:6}}/><div style={{fontSize:12,color:C.muted}}>Foto hochladen</div></div>}
+                <input ref={fileRef} type="file" accept="image/*" onChange={handleImgFile} style={{display:'none'}}/>
               </div>
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>BILD BESCHREIBEN / ANGEBOT *</label>
-                <textarea value={imgDesc} onChange={e=>setImgDesc(e.target.value)} rows={3} placeholder="z.B. Zeigt unsere Rooftop-Bar beim Sonnenuntergang — erstelle einen Happy-Hour-Reel" style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
-              </div>
-            </>
-          )}
-          {inputMode==='text'&&(
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>ANGEBOT / NACHRICHT *</label>
-              <textarea value={form.offer} onChange={e=>setForm(p=>({...p,offer:e.target.value}))} rows={3} placeholder="z.B. Happy Hour: 50% auf alle Cocktails bis 20 Uhr" style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
             </div>
           )}
+
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>DEINE IDEE / ANGEBOTS-PROMPT *</label>
+            <textarea
+              value={inputMode==='image' ? imgDesc : form.offer}
+              onChange={e => inputMode==='image' ? setImgDesc(e.target.value) : setForm(p=>({...p,offer:e.target.value}))}
+              rows={3}
+              placeholder="z.B. Saftiges Wagyu Burger Special mit Trüffel-Mayo und krossen Pommes im Kerzenschein..."
+              style={{width:'100%',padding:'10px 14px',borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit'}}
+            />
+          </div>
+
+          {/* Quick Preset Prompts */}
+          <div style={{marginBottom:18}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:600}}>SCHNELLE PROMPT-VORLAGEN:</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {PRESET_PROMPTS.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    if (inputMode==='image') setImgDesc(p.text)
+                    else setForm(f => ({ ...f, offer: p.text }))
+                  }}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    color: C.white,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
             <div>
               <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>STANDORT</label>
               <select value={locationId} onChange={e=>setLocationId(e.target.value)} style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.card2,color:C.white,fontSize:13,outline:'none',fontFamily:'inherit'}}>
+                <option value="ALL">🌐 Alle Standorte (Global / ALL)</option>
                 {locs.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
@@ -615,47 +1143,365 @@ function AIGenerator({ tenantId, locs, notify }) {
               </select>
             </div>
           </div>
+
           <div style={{marginBottom:18}}>
-            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>CTA-ZIEL (URL)</label>
-            <input value={form.ctaUrl} onChange={e=>setForm(p=>({...p,ctaUrl:e.target.value}))} placeholder="https://..." style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,letterSpacing:1,fontWeight:600}}>CTA-BUTTON ZIEL (URL)</label>
+            <input value={form.ctaUrl} onChange={e=>setForm(p=>({...p,ctaUrl:e.target.value}))} placeholder="https://app.scenvy.de/..." style={{width:'100%',padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
           </div>
-          <button onClick={generate} disabled={loading} style={{width:'100%',padding:'14px 0',borderRadius:12,border:'none',cursor:loading?'wait':'pointer',background:loading?C.dim:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:10,fontFamily:'inherit'}}>
-            {loading?<><RefreshCw size={18} style={{animation:'spin 1s linear infinite'}}/>Generiert...</>:<><Sparkles size={18}/>Reel generieren</>}
+
+          <button onClick={generate} disabled={loading} style={{width:'100%',padding:'14px 0',borderRadius:12,border:'none',cursor:loading?'wait':'pointer',background:loading?C.dim:grad(C.purple,C.pink),color:C.white,fontWeight:800,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:10,fontFamily:'inherit'}}>
+            {loading?<><RefreshCw size={18} style={{animation:'spin 1s linear infinite'}}/>Generiere KI Reel...</>:<><Sparkles size={18}/>Reel mit Gemini KI erstellen</>}
           </button>
         </div>
+
         <div>
-          {!result
-            ?<div style={{background:C.card,borderRadius:16,padding:24,border:`2px dashed ${C.border}`,height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
-               <Sparkles size={44} color={C.dim} style={{marginBottom:16}}/><div style={{fontSize:16,fontWeight:600,color:C.muted}}>Vorschau erscheint hier</div>
-             </div>
-            :<div>
-               <div style={{background:`linear-gradient(160deg,${accent}28,${C.bg} 70%)`,border:`2px solid ${accent}44`,borderRadius:22,padding:24,marginBottom:14,animation:'fadeUp .3s ease'}}>
-                 {imgPreview&&<div style={{position:'relative',borderRadius:14,overflow:'hidden',marginBottom:14,maxHeight:200}}>
-                   <img src={imgPreview} style={{width:'100%',maxHeight:200,objectFit:'cover',display:'block'}} alt=""/>
-                   <div style={{position:'absolute',inset:0,background:`linear-gradient(180deg,transparent 40%,${C.bg} 100%)`}}/>
-                 </div>}
-                 <div style={{background:`linear-gradient(180deg,${accent}33,${C.bg})`,borderRadius:16,padding:'24px 20px',textAlign:'center',marginBottom:14,display:'flex',flexDirection:'column',justifyContent:'space-between',minHeight:200,position:'relative',overflow:'hidden'}}>
-                   <div style={{position:'absolute',inset:0,background:`linear-gradient(90deg,transparent,${accent}11,transparent)`,backgroundSize:'200% 100%',animation:'shimmer 3s linear infinite'}}/>
-                   <div style={{fontSize:40,animation:'pulse 2s ease-in-out infinite',position:'relative'}}>{result.emoji}</div>
-                   <div style={{position:'relative'}}>
-                     <div style={{fontSize:12,fontWeight:800,color:accent,letterSpacing:2,marginBottom:7,animation:'slideIn .4s ease'}}>{result.hook}</div>
-                     <div style={{fontSize:18,fontWeight:800,lineHeight:1.28,marginBottom:9,animation:'slideIn .5s ease'}}>{result.headline}</div>
-                     <div style={{fontSize:13,color:'rgba(255,255,255,.6)',marginBottom:10,animation:'slideIn .6s ease'}}>{result.subtext}</div>
-                     {result.urgency&&<div style={{fontSize:12,color:accent,fontWeight:600,animation:'slideIn .7s ease'}}>⏱ {result.urgency}</div>}
-                     {form.ctaUrl&&<div style={{fontSize:10,color:C.blue,marginTop:6,display:'flex',alignItems:'center',justifyContent:'center',gap:4}}><ExternalLink size={9}/>{form.ctaUrl}</div>}
-                   </div>
-                   <button style={{padding:'11px 28px',borderRadius:13,border:'none',background:accent,color:C.white,fontWeight:700,fontSize:15,position:'relative',transition:'transform .2s',cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.transform='scale(1.05)'} onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>{result.cta} →</button>
-                 </div>
-                 <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{result.hashtags?.map((h,i)=><span key={h} style={{fontSize:11,color:accent,background:`${accent}22`,padding:'3px 9px',borderRadius:7,animation:`slideIn ${.3+i*.1}s ease`}}>#{h}</span>)}</div>
-               </div>
-               <div style={{display:'flex',gap:10}}>
-                 <button onClick={save} style={{flex:1,padding:'12px 0',borderRadius:10,border:'none',cursor:'pointer',background:accent,color:C.white,fontWeight:700,fontSize:14,fontFamily:'inherit'}}>✓ In Library speichern</button>
-                 <button onClick={()=>setResult(null)} style={{padding:'12px 18px',borderRadius:10,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>Nochmal</button>
-               </div>
-             </div>
-          }
+          {!result ? (
+            <div style={{background:C.card,borderRadius:16,padding:24,border:`2px dashed ${C.border}`,height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
+              <Sparkles size={44} color={C.dim} style={{marginBottom:16}}/>
+              <div style={{fontSize:16,fontWeight:700,color:C.muted}}>Generierte KI Vorschau</div>
+              <div style={{fontSize:12,color:C.dim,marginTop:4,maxWidth:260}}>Klicke links auf "Reel erstellen", um Hook, Emojis, Farbstimmung & KI Visualisierung zu erhalten.</div>
+            </div>
+          ) : (
+            <div>
+              <div style={{background:`linear-gradient(160deg,${accent}28,${C.bg} 70%)`,border:`2px solid ${accent}44`,borderRadius:22,padding:20,marginBottom:14,animation:'fadeUp .3s ease'}}>
+                {imgPreview && (
+                  <div style={{position:'relative',borderRadius:14,overflow:'hidden',marginBottom:14,maxHeight:220}}>
+                    <img src={imgPreview} style={{width:'100%',maxHeight:220,objectFit:'cover',display:'block'}} alt=""/>
+                    <div style={{position:'absolute',inset:0,background:`linear-gradient(180deg,transparent 40%,${C.bg} 100%)`}}/>
+                  </div>
+                )}
+                <div style={{background:`linear-gradient(180deg,${accent}33,${C.bg})`,borderRadius:16,padding:'24px 20px',textAlign:'center',marginBottom:14,display:'flex',flexDirection:'column',justifyContent:'space-between',minHeight:200,position:'relative',overflow:'hidden'}}>
+                  <div style={{fontSize:44,animation:'pulse 2s ease-in-out infinite',position:'relative'}}>{result.emoji}</div>
+                  <div style={{position:'relative'}}>
+                    <div style={{fontSize:12,fontWeight:800,color:accent,letterSpacing:2,marginBottom:7}}>{result.hook}</div>
+                    <div style={{fontSize:18,fontWeight:800,lineHeight:1.28,marginBottom:9}}>{result.headline}</div>
+                    <div style={{fontSize:13,color:'rgba(255,255,255,.7)',marginBottom:10}}>{result.subtext}</div>
+                    {result.urgency&&<div style={{fontSize:12,color:accent,fontWeight:600}}>⏱ {result.urgency}</div>}
+                  </div>
+                  <button style={{padding:'11px 28px',borderRadius:13,border:'none',background:accent,color:C.white,fontWeight:700,fontSize:15,cursor:'pointer',marginTop:12}}>{result.cta} →</button>
+                </div>
+              </div>
+
+              {/* Status and Schedule Selection before save */}
+              <div style={{background:C.card,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:C.white}}>VERÖFFENTLICHUNGS-STATUS:</div>
+                <div style={{display:'flex',gap:8,marginBottom:10}}>
+                  {[
+                    ['draft', '📝 Entwurf'],
+                    ['scheduled', '📅 Geplant'],
+                    ['live', '🚀 Sofort Live']
+                  ].map(([st, lbl]) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setSaveStatus(st)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: saveStatus === st ? `1px solid ${C.purple}` : `1px solid ${C.border}`,
+                        background: saveStatus === st ? `${C.purple}22` : C.bg,
+                        color: saveStatus === st ? C.white : C.muted,
+                        fontSize: 12,
+                        fontWeight: saveStatus === st ? 700 : 400,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+
+                {saveStatus === 'scheduled' && (
+                  <div>
+                    <label style={{fontSize:11,color:C.orange,display:'block',marginBottom:4,fontWeight:700}}>DATUM & UHRZEIT:</label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={e => setScheduledAt(e.target.value)}
+                      style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1px solid ${C.orange}`,background:C.bg,color:C.white,fontSize:12}}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={save} style={{flex:1,padding:'12px 0',borderRadius:10,border:'none',cursor:'pointer',background:accent,color:C.white,fontWeight:800,fontSize:14,fontFamily:'inherit'}}>
+                  ✓ Reel Speichern ({saveStatus.toUpperCase()})
+                </button>
+                <button onClick={()=>setResult(null)} style={{padding:'12px 18px',borderRadius:10,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>Nochmal</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Location Modal ────────────────────────────────────────
+function LocationModal({ location, tenantId, onClose, onSave, notify }) {
+  const [name,    setName]    = useState(location?.name    || '')
+  const [city,    setCity]    = useState(location?.city    || '')
+  const [address, setAddress] = useState(location?.address || '')
+  const [zip,     setZip]     = useState(location?.zip     || '')
+  const [country, setCountry] = useState(location?.country || 'DE')
+  const [active,  setActive]  = useState(location?.active !== false)
+
+  const save = () => {
+    if (!name.trim()) { notify('Bitte Standortname eingeben'); return }
+    onSave({
+      ...(location?.id ? { id: location.id } : {}),
+      name, city, address, zip, country, active, tenant_id: tenantId
+    })
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(10px)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:20,width:'100%',maxWidth:480,padding:24}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div style={{fontWeight:800,fontSize:18,display:'flex',alignItems:'center',gap:8}}>
+            <MapPin size={20} color={C.purple}/>
+            <span>{location?.id ? 'Standort bearbeiten' : 'Neuen Standort anlegen'}</span>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer'}}><X size={20}/></button>
+        </div>
+
+        <div style={{display:'grid',gap:14}}>
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>STANDORTNAME *</label>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="z.B. Rooftop Lounge Berlin" style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>STRASSE & NR.</label>
+            <input value={address} onChange={e=>setAddress(e.target.value)} placeholder="Alexanderplatz 1" style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1.5fr 1fr',gap:10}}>
+            <div>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>PLZ</label>
+              <input value={zip} onChange={e=>setZip(e.target.value)} placeholder="10178" style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>STADT</label>
+              <input value={city} onChange={e=>setCity(e.target.value)} placeholder="Berlin" style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:6,fontWeight:600,letterSpacing:1}}>LAND</label>
+              <input value={country} onChange={e=>setCountry(e.target.value)} placeholder="DE" style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontSize:13,outline:'none'}}/>
+            </div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginTop:4}}>
+            <button
+              type="button"
+              onClick={() => setActive(!active)}
+              style={{
+                width: 40, height: 22, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: active ? C.green : C.dim, position: 'relative', transition: 'background 0.2s'
+              }}
+            >
+              <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: active ? 21 : 3, transition: 'left 0.2s' }} />
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 600, color: active ? C.green : C.muted }}>
+              {active ? '● Standort Aktiv' : '○ Standort Deaktiviert'}
+            </span>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:10,marginTop:24}}>
+          <button onClick={save} style={{flex:1,padding:'12px 0',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:800,fontSize:14,cursor:'pointer'}}>
+            ✓ Standort Speichern
+          </button>
+          <button onClick={onClose} style={{padding:'12px 18px',borderRadius:10,border:`1px solid ${C.border}`,background:'transparent',color:C.muted,cursor:'pointer',fontSize:13}}>
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Locations Page ────────────────────────────────────────
+function LocationsPage({ locs, tenantId, notify }) {
+  const [editLoc, setEditLoc] = useState(null)
+  const saveLoc = useSaveLocation()
+  const deleteLoc = useDeleteLocation()
+
+  const handleSave = async (data) => {
+    try {
+      await saveLoc.mutateAsync({ location: data, tenantId })
+      notify('✅ Standort gespeichert')
+      setEditLoc(null)
+    } catch (e) {
+      notify('❌ Fehler beim Speichern: ' + e.message)
+    }
+  }
+
+  const handleToggleActive = async (loc) => {
+    try {
+      await saveLoc.mutateAsync({ location: { ...loc, active: !loc.active }, tenantId })
+      notify(loc.active ? 'Standort deaktiviert' : '✅ Standort aktiviert')
+    } catch {
+      notify('❌ Fehler beim Aktualisieren')
+    }
+  }
+
+  const handleDelete = async (loc) => {
+    if (!window.confirm(`Möchtest du den Standort "${loc.name}" wirklich löschen?`)) return
+    try {
+      await deleteLoc.mutateAsync({ id: loc.id, tenantId })
+      notify('🗑️ Standort gelöscht')
+    } catch (e) {
+      notify('❌ Fehler beim Löschen')
+    }
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <div>
+          <div style={{fontSize:11,color:C.pink,fontWeight:800,letterSpacing:2,marginBottom:4}}>STANDORTE</div>
+          <div style={{fontSize:24,fontWeight:900}}>Standorte & QR-Venues</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:4}}>Verwalte deine Tische, Venues, QR-Punkte und Adressen.</div>
+        </div>
+        <button onClick={() => setEditLoc({})} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 20px',borderRadius:12,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:800,fontSize:14,cursor:'pointer'}}>
+          <Plus size={16}/> Neuer Standort
+        </button>
+      </div>
+
+      {locs.length === 0 ? (
+        <div style={{background:C.card,borderRadius:16,padding:48,textAlign:'center',border:`2px dashed ${C.border}`}}>
+          <MapPin size={44} color={C.dim} style={{marginBottom:12}}/>
+          <div style={{fontSize:16,fontWeight:800,color:C.white}}>Noch keine Standorte hinterlegt</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:4,marginBottom:20}}>Erstelle deinen ersten Standort, um QR-Codes zu generieren und Reels zuzuordnen.</div>
+          <button onClick={() => setEditLoc({})} style={{padding:'10px 20px',borderRadius:10,border:'none',background:C.purple,color:C.white,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+            + Standort Hinzufügen
+          </button>
+        </div>
+      ) : (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:18}}>
+          {locs.map(l => (
+            <div key={l.id} style={{background:C.card,borderRadius:18,padding:22,border:`1px solid ${C.border}`,position:'relative'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+                <div>
+                  <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>{l.name}</div>
+                  <div style={{fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:4}}>
+                    <MapPin size={12} color={C.purple}/> {l.address ? `${l.address}, ` : ''}{l.city || 'Berlin'}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize:10,fontWeight:800,padding:'4px 10px',borderRadius:12,
+                  background: l.active ? `${C.green}22` : `${C.dim}44`,
+                  color: l.active ? C.green : C.muted,
+                  border: `1px solid ${l.active ? C.green : C.border}44`
+                }}>
+                  {l.active ? '● AKTIV' : '○ INAKTIV'}
+                </span>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,background:C.bg,borderRadius:12,padding:12,marginBottom:16,border:`1px solid ${C.border}`}}>
+                <div>
+                  <div style={{fontSize:10,color:C.muted,fontWeight:700}}>GÄSTE SCANS</div>
+                  <div style={{fontSize:16,fontWeight:800,color:C.blue}}>{(l.scans||0).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:C.muted,fontWeight:700}}>WATCH RATE</div>
+                  <div style={{fontSize:16,fontWeight:800,color:C.green}}>{l.wr||88}%</div>
+                </div>
+              </div>
+
+              <div style={{display:'flex',gap:8}}>
+                <button
+                  onClick={() => handleToggleActive(l)}
+                  style={{
+                    flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    background: l.active ? `${C.orange}22` : `${C.green}22`,
+                    color: l.active ? C.orange : C.green,
+                    fontSize: 12, fontWeight: 700, fontFamily: 'inherit'
+                  }}
+                >
+                  {l.active ? 'Deaktivieren' : 'Aktivieren'}
+                </button>
+                <button
+                  onClick={() => setEditLoc(l)}
+                  style={{ padding: '8px 12px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg, color: C.blue, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                  title="Bearbeiten"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => handleDelete(l)}
+                  style={{ padding: '8px 12px', borderRadius: 9, border: `1px solid ${C.pink}44`, background: `${C.pink}11`, color: C.pink, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                  title="Standort Löschen"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editLoc !== null && (
+        <LocationModal
+          location={Object.keys(editLoc).length ? editLoc : null}
+          tenantId={tenantId}
+          onClose={() => setEditLoc(null)}
+          onSave={handleSave}
+          notify={notify}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── QR Page ───────────────────────────────────────────────
+function QRPage({ locs, notify }) {
+  return (
+    <div>
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:11,color:C.pink,fontWeight:800,letterSpacing:2,marginBottom:4}}>GÄSTE-CATCHER</div>
+        <div style={{fontSize:24,fontWeight:900}}>QR-Codes & Tischaufsteller</div>
+        <div style={{fontSize:13,color:C.muted,marginTop:4}}>Generiere hochauflösende QR-Codes für Tische, Theken und Werbe-Aufsteller.</div>
+      </div>
+
+      {locs.length === 0 ? (
+        <div style={{background:C.card,borderRadius:16,padding:40,textAlign:'center',border:`2px dashed ${C.border}`}}>
+          <QrCode size={40} color={C.dim} style={{marginBottom:12}}/>
+          <div style={{fontSize:15,fontWeight:700,color:C.white}}>Keine Standorte vorhanden</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:4}}>Lege zuerst einen Standort an, um QR-Codes zu generieren.</div>
+        </div>
+      ) : (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:20}}>
+          {locs.map(l => {
+            const guestUrl = getGuestUrl(l.id)
+            return (
+              <div key={l.id} style={{background:C.card,borderRadius:20,padding:24,border:`1px solid ${C.border}`,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center'}}>
+                <div style={{fontSize:18,fontWeight:800,marginBottom:2}}>{l.name}</div>
+                <div style={{fontSize:12,color:C.muted,marginBottom:16}}>📍 {l.city || 'Berlin'}</div>
+
+                <div style={{background:'#fff',padding:16,borderRadius:16,boxShadow:'0 10px 30px rgba(0,0,0,0.5)',marginBottom:16}}>
+                  <img src={qrImageUrl(l.id, 200)} alt="QR Code" style={{width:180,height:180,display:'block'}}/>
+                </div>
+
+                <div style={{fontSize:11,color:C.blue,background:`${C.blue}15`,padding:'6px 12px',borderRadius:8,marginBottom:18,wordBreak:'break-all',maxWidth:'100%'}}>
+                  🔗 {guestUrl}
+                </div>
+
+                <div style={{display:'flex',gap:8,width:'100%',flexWrap:'wrap'}}>
+                  <button onClick={() => downloadQR(l.id, l.name)} style={{flex:1,minWidth:140,padding:'10px 0',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                    <Download size={14}/> Download PNG
+                  </button>
+                  <button onClick={async () => { await copyToClipboard(guestUrl); notify('📋 Link in Zwischenablage kopiert!') }} style={{padding:'10px 14px',borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.white,fontWeight:700,fontSize:12,cursor:'pointer'}}>
+                    📋 Link
+                  </button>
+                  <button onClick={() => window.open(guestUrl, '_blank')} style={{padding:'10px 14px',borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.purple,fontWeight:700,fontSize:12,cursor:'pointer'}} title="Vorschau Öffnen">
+                    <ExternalLink size={14}/>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -735,18 +1581,22 @@ function CompanySettingsPage({ tenantId, notify }) {
   const saveTenant = useSaveTenantProfile()
   const [form, setForm] = useState(null)
 
-  useEffect(() => { if (tenant && !form) setForm({
-    company_name: tenant.company_name||tenant.name||'',
-    company_address: tenant.company_address||'',
-    company_zip: tenant.company_zip||'',
-    company_city: tenant.company_city||'',
-    company_country: tenant.company_country||'DE',
-    contact_name: tenant.contact_name||'',
-    contact_email: tenant.contact_email||'',
-    contact_phone: tenant.contact_phone||'',
-    vat_id: tenant.vat_id||'',
-    website: tenant.website||'',
-  })}, [tenant, form])
+  useEffect(() => {
+    if (!form && !isLoading) {
+      setForm({
+        company_name: tenant?.company_name || tenant?.name || '',
+        company_address: tenant?.company_address || '',
+        company_zip: tenant?.company_zip || '',
+        company_city: tenant?.company_city || '',
+        company_country: tenant?.company_country || 'DE',
+        contact_name: tenant?.contact_name || '',
+        contact_email: tenant?.contact_email || '',
+        contact_phone: tenant?.contact_phone || '',
+        vat_id: tenant?.vat_id || '',
+        website: tenant?.website || '',
+      })
+    }
+  }, [tenant, isLoading, form])
 
   if (isLoading || !form) return <div style={{padding:40,textAlign:'center',color:C.muted}}>Lade Firmendaten...</div>
 
@@ -811,39 +1661,180 @@ function CompanySettingsPage({ tenantId, notify }) {
   )
 }
 
+// ── Board Showcase Module ─────────────────────────────────
+function BoardShowcase() {
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, color: C.blue, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>GEBUCHTES MODUL</div>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>📺 SCENVY BOARD — Digital Signage & TV Screens</div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
+          Steuere TV-Bildschirme, Menükarten auf Großmonitoren und digitale Werbedisplays direkt von deinem Mandanten-Konto.
+        </div>
+      </div>
+
+      <div style={{ background: C.card, borderRadius: 20, border: `1px solid ${C.border}`, padding: 32, textAlign: 'center', maxWidth: 680, margin: '40px auto 0' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${C.blue}22`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <Tv size={32} />
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Modul "SCENVY BOARD" freigeschaltet</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.6 }}>
+          Anbindung für Smart-TV, Fire TV Stick, Android Signage & Browser-Displays. Automatische Synchronisation mit deinen SCENVY Reels und digitalen Speisekarten.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, textAlign: 'left', marginBottom: 28 }}>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>📺 Screen Sync</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Automatischer Stream von 9:16 Video Reels auf 16:9 TV-Displays</div>
+          </div>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>⏱ Playlisten</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Zeitgesteuerte Angebote für Lunch, Happy Hour & Abendkarte</div>
+          </div>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>⚡ Multi-Display</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Unbegrenzte Bildschirme pro Standort synchron verwalten</div>
+          </div>
+        </div>
+
+        <button style={{ padding: '12px 28px', borderRadius: 12, background: C.blue, color: C.white, border: 'none', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+          🚀 Screen verbinden & QR-Pairing starten
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Host Showcase Module ──────────────────────────────────
+function HostShowcase() {
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, color: C.green, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>GEBUCHTES MODUL</div>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>🏨 SCENVY HOST — Digital Guest Concierge & Services</div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
+          Mache Zimmer, Tische und Lounges mit digitalen Gäste-Services, Raum-Bestellungen und Feedback-Loops erreichbar.
+        </div>
+      </div>
+
+      <div style={{ background: C.card, borderRadius: 20, border: `1px solid ${C.border}`, padding: 32, textAlign: 'center', maxWidth: 680, margin: '40px auto 0' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${C.green}22`, color: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <ConciergeBell size={32} />
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Modul "SCENVY HOST" aktiv</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.6 }}>
+          Digitale Gästemappe, Room-Service Bestellungen, Tisch-Rufknöpfe & automatisches Gäste-Feedback über QR-Codes am Platz.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, textAlign: 'left', marginBottom: 28 }}>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>🔔 Service-Ruf</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Gäste rufen Kellner oder Zimmerservice mit 1-Klick am Handy</div>
+          </div>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>📖 Gästemappe</div>
+            <div style={{ fontSize: 11, color: C.muted }}>WLAN, Infos, Ausflugstipps & Hausordnung immer aktuell</div>
+          </div>
+          <div style={{ background: C.bg, padding: 14, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 4 }}>⭐ Live-Bewertung</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Google-Bewertungen steigern, indem Feedback direkt erfasst wird</div>
+          </div>
+        </div>
+
+        <button style={{ padding: '12px 28px', borderRadius: 12, background: C.green, color: C.white, border: 'none', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+          🛎️ Service-Tische & QR-Aufsteller konfigurieren
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Dashboard ────────────────────────────────────────
 export default function Dashboard() {
-  const { user, logout } = useAuth()
+  const nav = useNavigate()
+  const { user, logout, stopImpersonation } = useAuth()
   const tenantId = user?.tenant_id
 
   const { data: reels=[], isLoading: reelsLoading } = useReels(tenantId)
   const { data: locs=[],  isLoading: locsLoading  } = useLocations(tenantId)
 
-  const [page,  setPage]  = useState('overview')
-  const [open,  setOpen]  = useState(true)
-  const [lang,  setLang]  = useState(() => localStorage.getItem('scenvy_lang')||'de')
-  const [toast, setToast] = useState(null)
+  const [page,      setPage]      = useState('overview')
+  const [moduleTab, setModuleTab] = useState('feed')
+  const [open,      setOpen]      = useState(true)
+  const [lang,      setLang]      = useState(() => localStorage.getItem('scenvy_lang')||'de')
+  const [toast,     setToast]     = useState(null)
+
+  // Reset or initialize subTab whenever module page changes
+  const handleSetPage = (newPage) => {
+    setPage(newPage)
+    if (newPage === 'reels') setModuleTab('feed')
+    else if (newPage === 'menu_generator' || newPage === 'menu') setModuleTab('create')
+    else if (newPage === 'board') setModuleTab('overview')
+    else if (newPage === 'host') setModuleTab('overview')
+  }
 
   const t = T[lang]
   const notify = msg => { setToast(msg); setTimeout(()=>setToast(null), 3000) }
 
   if (reelsLoading || locsLoading) return (
-    <div style={{height:'100vh',background:C.bg,display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div style={{height:'100vh',background:C.bg,display:'flex',alignItems:'center',justifyContent:open?'center':'center'}}>
       <div style={{width:40,height:40,borderRadius:'50%',border:`3px solid ${C.purple}`,borderTopColor:'transparent',animation:'spin .8s linear infinite'}}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
   return (
-    <div style={{display:'flex',height:'100vh',background:C.bg,fontFamily:"'Inter',sans-serif",color:C.white}}>
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',background:C.bg,fontFamily:"'Inter',sans-serif",color:C.white}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}} @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}} @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}} @keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}`}</style>
 
-      <Sidebar page={page} setPage={setPage} open={open} setOpen={setOpen} t={t} user={user} logout={logout}/>
+      {user?.isImpersonating && (
+        <div style={{
+          background: 'linear-gradient(90deg, #7C3AED 0%, #FF2D8D 100%)',
+          color: '#fff',
+          padding: '8px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 13,
+          fontWeight: 700,
+          zIndex: 1000,
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Shield size={16} />
+            <span>PLATFORM ADMIN IMPERSONATION MODUS: Du verwaltest den Mandanten "{user?.tenant?.name || 'Mandant'}" (ID: {user?.tenant_id?.slice(0,12)}...)</span>
+          </div>
+          <button
+            onClick={() => { stopImpersonation(); nav('/admin') }}
+            style={{
+              background: 'rgba(0,0,0,0.35)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              color: '#fff',
+              padding: '4px 14px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontSize: 12,
+              fontFamily: 'inherit'
+            }}
+          >
+            ← Zurück zum Platform Admin Portal
+          </button>
+        </div>
+      )}
 
-      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+        <Sidebar page={page} setPage={handleSetPage} open={open} setOpen={setOpen} t={t} user={user} logout={logout}/>
+
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
         {/* Top bar */}
         <div style={{height:58,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',padding:'0 28px',justifyContent:'space-between',flexShrink:0}}>
-          <div style={{fontWeight:700,fontSize:14}}>{user?.tenant?.name||'Dashboard'}</div>
+          <div style={{fontWeight:700,fontSize:14,display:'flex',alignItems:'center',gap:8}}>
+            <span>🏢 {user?.tenant?.name||'Mandanten Dashboard'}</span>
+            <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:`${C.purple}22`,color:C.purple,fontWeight:700}}>
+              {page.toUpperCase()}
+            </span>
+          </div>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{display:'flex',background:C.card2,border:`1px solid ${C.border}`,borderRadius:8,padding:3}}>
               {[['de','🇩🇪'],['en','🇬🇧']].map(([l,f])=>(
@@ -857,12 +1848,23 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Second Line Sub-Header for Active Module */}
+        <ModuleSubHeader
+          activeModule={page}
+          activeTab={moduleTab}
+          setActiveTab={setModuleTab}
+          reelsCount={reels.length}
+        />
+
         <div style={{flex:1,overflowY:'auto',padding:28}}>
-          {page==='overview'  && <Overview   setPage={setPage} reels={reels} locs={locs} t={t}/>}
-          {page==='reels'     && <ReelsPage  reels={reels} locs={locs} tenantId={tenantId} notify={notify} t={t}/>}
+          {page==='overview'  && <Overview   setPage={handleSetPage} reels={reels} locs={locs} t={t}/>}
+          {page==='reels'     && <ReelsPage  reels={reels} locs={locs} tenantId={tenantId} notify={notify} t={t} subTab={moduleTab} setSubTab={setModuleTab}/>}
           {page==='locations' && <LocationsPage locs={locs} tenantId={tenantId} notify={notify}/>}
           {page==='analytics' && <Analytics  tenantId={tenantId}/>}
           {page==='ai'        && <AIGenerator tenantId={tenantId} locs={locs} notify={notify}/>}
+          {(page==='menu_generator' || page==='menu') && <MenuGenerator embedded={true} initialTab={moduleTab} />}
+          {page==='board'     && <BoardShowcase />}
+          {page==='host'      && <HostShowcase />}
           {page==='qr'        && <QRPage     locs={locs} notify={notify}/>}
           {page==='media'     && <MediaLibraryPage tenantId={tenantId} notify={notify}/>}
           {page==='company'   && <CompanySettingsPage tenantId={tenantId} notify={notify}/>}
@@ -886,8 +1888,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
-      {toast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:C.purple,color:C.white,padding:'12px 24px',borderRadius:14,fontSize:13,fontWeight:600,zIndex:9999,animation:'fadeUp .25s ease'}}>{toast}</div>}
     </div>
+
+    {toast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:C.purple,color:C.white,padding:'12px 24px',borderRadius:14,fontSize:13,fontWeight:600,zIndex:9999,animation:'fadeUp .25s ease'}}>{toast}</div>}
+  </div>
   )
 }
