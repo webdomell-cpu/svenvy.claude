@@ -28,7 +28,7 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
   const isEdit = !!reel?.id
   const [title,       setTitle]       = useState(reel?.title       || '')
   const [type,        setType]        = useState(reel?.type        || 'offer')
-  const [locationId,  setLocationId]  = useState(reel?.locationId || reel?.location_id || locs[0]?.id || '')
+  const [locationId,  setLocationId]  = useState(reel?.locationId || reel?.location_id || 'ALL')
   const [ctaText,     setCtaText]     = useState(reel?.cta         || 'Order Now')
   const [ctaUrl,      setCtaUrl]      = useState(reel?.ctaUrl      || reel?.cta_url || '')
   const [ctaAction,   setCtaAction]   = useState(reel?.ctaAction   || reel?.cta_action || 'url')
@@ -63,6 +63,7 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
       ...(reel?.id ? {id:reel.id} : {}),
       tenant_id:   tenantId,
       location_id: locationId,
+      locationId:  locationId,
       title, type,
       cta:        ctaText,
       cta_url:    ctaUrl,
@@ -75,8 +76,8 @@ function ReelModal({ reel, locs, tenantId, onClose, onSave, notify }) {
       mediaUrl:   preview,
       media_url:  preview,
       media_type: preview?.includes('.mp4')||preview?.includes('.mov') ? 'video' : 'image',
-      loc:        loc?.name || '',
-      locationId, ctaUrl, ctaAction, 
+      loc:        loc?.name || (locationId === 'ALL' ? 'Alle Standorte' : ''),
+      ctaUrl, ctaAction, 
     })
   }
 
@@ -586,7 +587,7 @@ function Overview({ setPage, reels, locs, t }) {
               <div style={{width:34,height:34,borderRadius:8,background:`${r.color||C.purple}28`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,overflow:'hidden',flexShrink:0}}>
                 {r.mediaUrl?r.mediaType==='video'?<video src={r.mediaUrl} autoPlay muted loop playsInline style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:8}} />:<img src={r.mediaUrl} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:8}} alt=""/>:r.emoji||'🎬'}
               </div>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{r.title}</div><div style={{fontSize:11,color:C.muted}}>{r.locations?.name||r.loc||'–'}</div></div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{r.title}</div><div style={{fontSize:11,color:C.muted}}>📍 {(r.locationId==='ALL'||r.location_id==='ALL'||!r.location_id||r.locationId==='all') ? '🌐 Alle Standorte' : (locs.find(l=>l.id===(r.locationId||r.location_id))?.name || r.loc || r.locations?.name || '–')}</div></div>
               {pill(r.status==='live'?'● LIVE':r.status?.toUpperCase()||'DRAFT', r.status==='live'?C.green:r.status==='scheduled'?C.orange:C.muted)}
             </div>
           ))}
@@ -915,7 +916,7 @@ function ReelsPage({ reels, locs, tenantId, notify, t, subTab = 'feed', setSubTa
                 <span style={{fontSize:20}}>{r.emoji||'🎬'}</span>
                 <span style={{fontSize:15,fontWeight:800}}>{r.title}</span>
               </div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📍 {r.locationId==='ALL'||r.location_id==='ALL'||!r.location_id ? '🌐 Alle Standorte (Global)' : (r.locations?.name||r.loc||'Standort')}</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📍 {(r.locationId==='ALL'||r.location_id==='ALL'||!r.location_id||r.locationId==='all') ? '🌐 Alle Standorte (Global)' : (locs.find(l=>l.id===(r.locationId||r.location_id))?.name || r.loc || r.locations?.name || 'Standort')}</div>
 
               {r.status==='scheduled' && (
                 <div style={{fontSize:11,color:C.orange,fontWeight:700,marginBottom:10,background:`${C.orange}15`,padding:'4px 8px',borderRadius:6}}>
@@ -955,7 +956,7 @@ function ReelsPage({ reels, locs, tenantId, notify, t, subTab = 'feed', setSubTa
 function AIGenerator({ tenantId, locs, notify }) {
   const [inputMode,   setInputMode]   = useState('text') // 'text' | 'image' | 'video'
   const [form,        setForm]        = useState({ venue:'', offer:'', type:'offer', tone:'exciting', ctaUrl:'' })
-  const [locationId,  setLocationId]  = useState(locs[0]?.id||'')
+  const [locationId,  setLocationId]  = useState('ALL')
   const [imgPreview,  setImgPreview]  = useState(null)
   const [imgDesc,     setImgDesc]     = useState('')
   const [result,      setResult]      = useState(null)
@@ -1031,10 +1032,12 @@ function AIGenerator({ tenantId, locs, notify }) {
         reel:{
           tenant_id:tenantId,
           location_id:locationId,
+          locationId:locationId,
           title:result.headline,
           type:form.type,
           status:saveStatus,
           scheduledAt: scheduledAt,
+          scheduled_at: scheduledAt,
           color:cm[result.colorMood]||C.purple,
           emoji:result.emoji,
           cta:result.cta,
@@ -1042,7 +1045,7 @@ function AIGenerator({ tenantId, locs, notify }) {
           cta_action:'url',
           mediaUrl:imgPreview,
           media_type: inputMode==='video' ? 'video' : 'image',
-          loc:loc?.name||''
+          loc:loc?.name || (locationId === 'ALL' ? 'Alle Standorte' : '')
         },
         tenantId
       })

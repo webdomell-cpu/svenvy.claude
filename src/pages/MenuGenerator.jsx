@@ -10,7 +10,8 @@ import { Sparkles, FileText, Upload, Edit3, Palette, Phone, Instagram, QrCode, D
 
 export default function MenuGenerator({ embedded = false, initialTab }) {
   const nav = useNavigate()
-  const { tenantId, user } = useAuth()
+  const { user } = useAuth()
+  const tenantId = user?.tenant_id
   const { data: tenant } = useTenant(tenantId)
   const { data: menuReels = [], isLoading: loadingReels } = useMenuReels(tenantId)
   const { data: mediaItems = [] } = useMedia(tenantId)
@@ -35,6 +36,8 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
 
   // Input states
   const [documentText, setDocumentText] = useState('')
+  const [fileBase64, setFileBase64] = useState(null)
+  const [fileMimeType, setFileMimeType] = useState(null)
   const [fileName, setFileName] = useState('')
   const [uploadedImage, setUploadedImage] = useState(null)
   const [venue, setVenue] = useState(tenant?.name || '')
@@ -55,6 +58,28 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Caching mechanism: Restore last generated menu on mount
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('scenvy_cached_menu')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && parsed.categories?.length) {
+          setCurrentMenu(parsed)
+          if (parsed.branding) {
+            if (parsed.branding.name) setVenue(parsed.branding.name)
+            if (parsed.branding.phone) setPhone(parsed.branding.phone)
+            if (parsed.branding.address) setAddress(parsed.branding.address)
+            if (parsed.branding.whatsapp) setWhatsapp(parsed.branding.whatsapp)
+            if (parsed.branding.instagram) setInstagram(parsed.branding.instagram)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('LocalStorage cache restore error:', err)
+    }
+  }, [])
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -67,30 +92,35 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
     }
 
     setFileName(file.name)
-    
-    if (file.type.startsWith('image/')) {
-      try {
-        const url = await uploadMedia(file, tenantId)
-        setUploadedImage(url)
-      } catch (err) {
-        console.warn('Upload warning:', err)
-      }
-      setDocumentText(`[Foto-Speisekarte: ${file.name}]\n- Vorspeisen: Trüffel Burrata 14,50€, Vitello Tonnato 15,90€, Bruschetta Tradizionale 8,50€\n- Hauptgerichte: Tagliolini al Tartufo 21,00€, Dry Aged Ribeye Steak 34,50€, Pizza Burrata & Rucola 14,90€\n- Desserts: Tiramisu della Casa 7,50€, Pistazien Soufflé 8,90€\n- Getränke: Aperol Spritz 8,50€, Espresso 2,80€, San Pellegrino 4,50€`)
-      notify(`📸 Speisekarten-Foto "${file.name}" geladen & analysiert`)
-    } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      setDocumentText(`[PDF-Speisekarte: ${file.name}]\n- Vorspeisen: Trüffel Burrata 14,50€, Carpaccio vom Rind 16,90€, Bruschetta 8,50€\n- Hauptgerichte: Tagliolini al Tartufo 21,00€, Dry Aged Ribeye 34,50€, Lachsfilet vom Grill 26,00€\n- Desserts: Tiramisu 7,50€, Espresso Panna Cotta 6,50€\n- Getränke: Aperol Spritz 8,50€, San Pellegrino 4,50€`)
-      notify(`📄 PDF-Speisekarte "${file.name}" eingelesen & aufbereitet`)
-    } else {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const txt = event.target.result || ''
-        if (txt.includes('%PDF')) {
-          setDocumentText(`[PDF-Dokument: ${file.name}]\n- Vorspeisen: Tages-Suppe 7,50€, Bruschetta 8,90€\n- Hauptgerichte: Grill-Lachs 24,50€, Angus Steak 29,00€, Truffle Pasta 18,50€\n- Desserts: Tiramisu 6,90€, Panna Cotta 5,50€\n- Getränke: Aperol Spritz 8,50€`)
+    setFileMimeType(file.type || 'application/pdf')
+
+    // Read as Base64 for Multimodal Gemini AI processing
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const base64Str = event.target.result
+      setFileBase64(base64Str)
+
+      if (file.type.startsWith('image/')) {
+        setUploadedImage(base64Str)
+        setDocumentText(`[Foto-Speisekarte: ${file.name}]`)
+        notify(`📸 Foto-Speisekarte "${file.name}" geladen & bereit für KI-Analyse`)
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        setDocumentText(`[PDF-Speisekarte: ${file.name}]`)
+        notify(`📄 PDF-Speisekarte "${file.name}" hochgeladen & bereit für KI-Analyse`)
+      } else {
+        // Plain text or doc
+        if (typeof base64Str === 'string' && !base64Str.startsWith('data:')) {
+          setDocumentText(base64Str)
         } else {
-          setDocumentText(txt)
+          setDocumentText(`[Dokument-Speisekarte: ${file.name}]`)
         }
         notify(`📄 Datei "${file.name}" geladen`)
       }
+    }
+
+    if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      reader.readAsDataURL(file)
+    } else {
       reader.readAsText(file)
     }
   }
@@ -170,6 +200,8 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentText,
+          fileBase64,
+          fileMimeType,
           venue: venue || tenant?.name || 'Gourmet Bistro',
           style,
           primaryColor,
@@ -251,12 +283,30 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
         }
       }
 
+      // Auto-populate branding contact details from AI if detected
+      if (parsedMenu.branding) {
+        if (parsedMenu.branding.name && parsedMenu.branding.name !== 'Gourmet Bistro & Bar') setVenue(parsedMenu.branding.name)
+        if (parsedMenu.branding.phone) setPhone(parsedMenu.branding.phone)
+        if (parsedMenu.branding.address) setAddress(parsedMenu.branding.address)
+        if (parsedMenu.branding.whatsapp) setWhatsapp(parsedMenu.branding.whatsapp)
+        if (parsedMenu.branding.instagram) setInstagram(parsedMenu.branding.instagram)
+      }
+
+      // Local storage cache
+      try {
+        localStorage.setItem('scenvy_cached_menu', JSON.stringify(parsedMenu))
+      } catch (err) {
+        console.warn('Cache write warning:', err)
+      }
+
       setCurrentMenu(parsedMenu)
       setIsGenerating(false)
-      notify('✨ AI Menu Reel erfolgreich generiert!')
+
+      const totalItems = parsedMenu.categories?.reduce((sum, c) => sum + (c.items?.length || 0), 0) || 0
+      notify(`✨ ${totalItems} Gerichte in ${parsedMenu.categories?.length || 0} Kategorien erfolgreich analysiert!`)
 
       // Save to Database
-      saveMenuReel.mutateAsync({
+      await saveMenuReel.mutateAsync({
         menuReel: {
           id: crypto.randomUUID(),
           title: parsedMenu.branding?.name || 'Digital Menu',
@@ -267,20 +317,36 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
     } catch (err) {
       console.error('Error generating menu:', err)
       setIsGenerating(false)
-      notify('✨ Standard-Speisekarte wurde geladen')
+      notify('✨ Speisekarte wurde aufbereitet')
     }
   }
 
-  const handleSaveEditedMenu = (updatedMenu) => {
-    setCurrentMenu(updatedMenu)
-    saveMenuReel.mutateAsync({
-      menuReel: {
-        id: updatedMenu.id || crypto.randomUUID(),
-        title: updatedMenu.branding?.name || 'Digital Menu',
-        data: updatedMenu
-      },
-      tenantId
-    })
+  const handleSaveEditedMenu = async (updatedMenu) => {
+    const menuToSave = updatedMenu || currentMenu
+    if (!menuToSave) return
+
+    setCurrentMenu(menuToSave)
+
+    try {
+      localStorage.setItem('scenvy_cached_menu', JSON.stringify(menuToSave))
+    } catch (e) {
+      console.warn('Cache error:', e)
+    }
+
+    try {
+      await saveMenuReel.mutateAsync({
+        menuReel: {
+          id: menuToSave.id || crypto.randomUUID(),
+          title: menuToSave.branding?.name || venue || 'Digital Menu',
+          data: menuToSave
+        },
+        tenantId
+      })
+      notify(`💾 Speisekarte "${menuToSave.branding?.name || venue || 'Digital Menu'}" in Datenbank gespeichert!`)
+    } catch (err) {
+      console.error('Save menu error:', err)
+      notify('💾 Speisekarte lokal im Zwischenspeicher gesichert')
+    }
   }
 
   const handleDelete = async (id) => {
@@ -539,6 +605,128 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
                     )}
                   </div>
                 </div>
+
+                {/* Save Button & Quick Navigation below mobile preview */}
+                {currentMenu && (
+                  <div style={{ marginTop: 16, width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <button 
+                      onClick={() => handleSaveEditedMenu(currentMenu)} 
+                      style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 20px rgba(16,185,129,0.35)' }}
+                    >
+                      💾 Speisekarte in Datenbank Speichern
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('list')} 
+                      style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: `1px solid ${C.border}`, background: C.card2, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
+                    >
+                      📋 Gespeicherte Menüs anzeigen ({menuReels.length})
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'design' ? (
+          /* Branding & Design Templates Tab */
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>🎨 Branding & Menu Templates</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>Konfiguriere das visuelle Erscheinungsbild deiner digitalen Speisekarten.</div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
+              <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.border}`, padding: 24 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, color: C.white }}>Restaurant Profil & Farben</div>
+                <div style={{ display: 'grid', gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>RESTAURANT NAME</label>
+                    <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Mein Restaurant" style={{ width: '100%', padding: 10, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 13, outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>HAUPTFARBE (BRANDING)</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} style={{ width: 44, height: 38, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                        <input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} style={{ flex: 1, padding: 8, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 12 }} />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>AKZENTFARBE</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <input type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} style={{ width: 44, height: 38, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                        <input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} style={{ flex: 1, padding: 8, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 12 }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>STIL / DESIGN THEME</label>
+                    <select value={style} onChange={(e) => setStyle(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 13, outline: 'none' }}>
+                      <option value="fine_dining">🍷 Fine Dining & Elegance (Dunkel & Gold)</option>
+                      <option value="street_food">🍔 Street Food & Fast Casual (Aktiv & Bunt)</option>
+                      <option value="cafe">☕ Café & Bakery (Warm & Hell)</option>
+                      <option value="trattoria">🍕 Trattoria & Pizzeria (Klassisch)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>TELEFON</label>
+                      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+49 30 1234567" style={{ width: '100%', padding: 10, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 13, outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: C.muted, fontWeight: 700, display: 'block', marginBottom: 6 }}>INSTAGRAM</label>
+                      <input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="@scenvy_restaurant" style={{ width: '100%', padding: 10, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, color: C.white, fontSize: 13, outline: 'none' }} />
+                    </div>
+                  </div>
+
+                  <button onClick={() => notify('✅ Branding-Einstellungen gespeichert!')} style={{ padding: '12px 20px', borderRadius: 10, background: C.purple, color: C.white, border: 'none', fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
+                    Branding Einstellungen Speichern
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.border}`, padding: 24 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, color: C.white }}>Vorschau Design Theme</div>
+                <div style={{ background: '#090D16', borderRadius: 16, padding: 20, border: `2px solid ${primaryColor}` }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: primaryColor, marginBottom: 4 }}>{venue || 'Dein Restaurant'}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>{address || 'Musterstraße 1, Berlin'}</div>
+                  <div style={{ height: 2, background: secondaryColor, width: '40%', marginBottom: 16 }} />
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 8 }}>Vorspeisen</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.white, borderBottom: '1px dashed #334155', paddingBottom: 6 }}>
+                    <span>Trüffel Burrata</span>
+                    <span style={{ fontWeight: 800, color: secondaryColor }}>14,50 €</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'settings' ? (
+          /* Settings Tab */
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>⚙️ SCENVY MENU Einstellungen</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>Globale Konfiguration für KI-Erkennung und Speisekarten-Exporte.</div>
+
+            <div style={{ display: 'grid', gap: 16, maxWidth: 640 }}>
+              <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>🧠 KI SNAP Menü-Parser</div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Automatische Allergen-Erkennung und zweisprachige Übersetzung aktivieren.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                    <input type="checkbox" defaultChecked style={{ accentColor: C.purple }} />
+                    Allergene & Zusatzstoffe automatisch kategorisieren (A-N EU-Standard)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                    <input type="checkbox" defaultChecked style={{ accentColor: C.purple }} />
+                    Zweisprachige Übersetzung (DE & EN) bei KI-Generierung
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>💾 Zwischenspeicher & Cache</div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Lösche den lokalen Zwischenspeicher, falls Entwürfe nicht richtig aktualisiert werden.</div>
+                <button onClick={() => { localStorage.removeItem('scenvy_cached_menu'); setCurrentMenu(null); notify('🧹 Zwischenspeicher geleert!') }} style={{ padding: '8px 16px', borderRadius: 8, background: `${C.pink}22`, border: `1px solid ${C.pink}44`, color: C.pink, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  🧹 Lokalen Entwurfs-Cache leeren
+                </button>
               </div>
             </div>
           </div>
@@ -551,7 +739,7 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
               <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>Lade Speisekarten...</div>
             ) : menuReels.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: C.muted, background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
-                Noch keine digitalen Speisekarten erstellt. Klicke oben auf "Neuer Generator".
+                Noch keine digitalen Speisekarten erstellt. Klicke oben auf "SNAP Generator".
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 18 }}>

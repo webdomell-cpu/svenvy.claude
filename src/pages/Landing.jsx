@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { C, grad } from '@/tokens'
 import { ScenvyLogoFull, ScenvyLogoIcon, ScenvyLogoBadge } from '@/components/ScenvyLogo'
+import { ScenvyAppIcon, ScenvyPhoneMockup, ScenvyHeroShowcase, MODULE_COLORS } from '@/components/ScenvyBrandShowcase'
 import { Check, Star, Play, Video, Zap, Sparkles, MapPin, BarChart2, QrCode, X, Send, Menu } from 'lucide-react'
 
 import flowSvg from '../scenvy_flow.svg'
@@ -293,51 +294,58 @@ export default function Landing(){
       )}
 
       {/* HERO */}
-      <section style={{minHeight:'85vh',display:'flex',alignItems:'center',padding:'110px 5% 40px',position:'relative',overflow:'hidden'}}>
-        <Glow color={C.purple} x="-5%" y="30%" size={700}/><Glow color={C.pink} x="105%" y="60%" size={600}/>
-        <div className="hero-container" style={{display:'flex',alignItems:'center',gap:60,width:'100%',maxWidth:1200,margin:'0 auto'}}>
-          <div className="hero-text" style={{flex:1}}>
-            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:`${C.purple}22`,border:`1px solid ${C.purple}44`,borderRadius:20,padding:'6px 14px',marginBottom:24}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:C.green}}/><span style={{fontSize:11,fontWeight:700,color:C.purple,letterSpacing:1}}>OPERATING SYSTEM FÜR PHYSISCHE ORTE</span>
+      <section style={{minHeight:'85vh',display:'flex',flexDirection:'column',alignItems:'center',padding:'110px 5% 40px',position:'relative',overflow:'hidden'}}>
+        <Glow color={C.purple} x="-5%" y="20%" size={700}/><Glow color={C.pink} x="105%" y="50%" size={600}/>
+        
+        <div style={{width:'100%',maxWidth:1200,margin:'0 auto'}}>
+          {/* Top Headline & Copy */}
+          <div style={{textAlign:'center',maxWidth:820,margin:'0 auto',marginBottom:32}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:8,background:`rgba(139,92,246,0.15)`,border:`1px solid rgba(139,92,246,0.35)`,borderRadius:20,padding:'6px 16px',marginBottom:20}}>
+              <span style={{fontSize:11,fontWeight:900,color:'#A78BFA',letterSpacing:1.5,textTransform:'uppercase'}}>
+                THE ALL-IN-ONE PLATFORM FOR HOSPITALITY
+              </span>
             </div>
-            <h1 style={{fontSize:'clamp(30px,4.5vw,58px)',fontWeight:900,lineHeight:1.1,marginBottom:22}}>
-              Ein Ökosystem.<br/>
-              <span style={{background:grad(C.purple,C.pink),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Eine Plattform.</span>
+            
+            <h1 style={{fontSize:'clamp(34px,5vw,64px)',fontWeight:900,lineHeight:1.08,marginBottom:20,letterSpacing:'-0.5px'}}>
+              One Platform.<br/>
+              Endless <span style={{background:grad('#8B5CF6','#EC4899'),WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Experiences.</span>
             </h1>
-            <p style={{fontSize:16,color:C.muted,lineHeight:1.7,marginBottom:32,maxWidth:540}}>
-              SCENVY ist das modulare SaaS-Ökosystem für Hospitality, Retail & Digital Signage. Von mobilen Content-Feeds und KI-Speisekarten bis hin zu Signage CMS und Concierge-Services.
+
+            <p style={{fontSize:'clamp(15px,1.8vw,18px)',color:C.muted,lineHeight:1.6,marginBottom:28,maxWidth:680,margin:'0 auto 28px'}}>
+              Scenvy connects your content, menus, screens and guest services in one powerful ecosystem. Engage your guests. Elevate every moment.
             </p>
 
-            {/* SUBDOMAIN STRUCTURE PREVIEW WITH SVGS */}
-            <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:32,background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,padding:'12px 16px',borderRadius:16,alignItems:'center'}}>
+            <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap',alignItems:'center',marginBottom:32}}>
+              <Btn onClick={()=>nav('/auth?mode=register')} style={{padding:'14px 32px',fontSize:15,background:'linear-gradient(135deg, #7C3AED, #DB2777)',boxShadow:'0 8px 28px rgba(124,58,237,0.4)'}}>
+                EXPLORE PLATFORM →
+              </Btn>
+              <Btn variant="outline" onClick={()=>nav('/l/demo')} style={{padding:'14px 28px',fontSize:15,display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.2)'}}>
+                <Play size={14} fill={C.white}/> WATCH VIDEO
+              </Btn>
+            </div>
+
+            {/* 8 OFFICIAL APP ICONS ROW */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,flexWrap:'wrap',padding:'12px 16px',borderRadius:20,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',maxWidth:720,margin:'0 auto'}}>
               {[
-                { name: 'app.scenvy.de', label: 'Main Portal', color: C.white, svg: magicSvg },
-                { name: 'flow.scenvy.de', label: 'Flow', color: '#8B5CF6', svg: flowSvg },
-                { name: 'menu.scenvy.de', label: 'Menu & Snap', color: '#F97316', svg: menuSvg },
-                { name: 'board.scenvy.de', label: 'Board', color: '#3B82F6', svg: boardSvg },
-                { name: 'host.scenvy.de', label: 'Host', color: '#10B981', svg: hostSvg },
-                { name: 'store.scenvy.de', label: 'Store', color: '#F43F5E', svg: storeSvg },
-                { name: 'link.scenvy.de', label: 'Link', color: '#6366F1', svg: linkSvg },
-              ].map((sub, i) => (
-                <div key={i} style={{fontSize:11,fontFamily:'monospace',padding:'6px 12px',borderRadius:10,background:'rgba(255,255,255,0.05)',border:`1px solid ${sub.color}44`,color:sub.color,fontWeight:600,display:'flex',alignItems:'center',gap:8}}>
-                  <img src={sub.svg} alt={sub.name} style={{width:20,height:20,borderRadius:4}} />
-                  {sub.name}
+                { id: 'scenvy', name: 'Scenvy' },
+                { id: 'flow', name: 'Flow' },
+                { id: 'menu', name: 'Menu' },
+                { id: 'board', name: 'Board' },
+                { id: 'host', name: 'Host' },
+                { id: 'link', name: 'Link' },
+                { id: 'store', name: 'Store' },
+                { id: 'magic', name: 'Magic' }
+              ].map((item) => (
+                <div key={item.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                  <ScenvyAppIcon module={item.id} size={42} />
+                  <span style={{fontSize:9,fontWeight:700,color:C.muted}}>{item.name}</span>
                 </div>
               ))}
             </div>
+          </div>
 
-            <div className="hero-cta-btns" style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:36}}>
-              <Btn onClick={()=>nav('/auth?mode=register')}>{t.cta1}</Btn>
-              <Btn variant="outline" onClick={()=>nav('/l/demo')} style={{display:'flex',alignItems:'center',gap:8}}><Play size={14} fill={C.white}/>{t.cta2}</Btn>
-            </div>
-            <div style={{display:'flex',gap:6,alignItems:'center',justifyContent:'inherit'}}>
-              {[...Array(5)].map((_,i)=><Star key={i} size={14} fill="#FF9500" color="#FF9500"/>)}
-              <span style={{fontSize:13,color:C.muted,marginLeft:8}}>{t.trust}</span>
-            </div>
-          </div>
-          <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{animation:'float 4s ease-in-out infinite',flexShrink:0}}><Phone size="large"/></div>
-          </div>
+          {/* FULL SCENVY HERO SHOWCASE COMPOSITION (Laptop + Kiosk + Phone + 7-Module Bar) */}
+          <ScenvyHeroShowcase />
         </div>
       </section>
 
@@ -498,29 +506,56 @@ export default function Landing(){
 
           </div>
 
-          {/* ALL 7 MODULE SVGS BRAND SHOWCASE GALLERY */}
-          <div style={{background:C.card,border:`1px solid ${C.purple}44`,borderRadius:24,padding:32,marginBottom:48}}>
-            <div style={{textAlign:'center',marginBottom:24}}>
-              <div style={{fontSize:11,fontWeight:800,color:C.purple,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>OFFIZIELLE MODUL-ASSEMENT BRANDING SVGS</div>
-              <h3 style={{fontSize:22,fontWeight:900,color:C.white}}>Die 7 Säulen des SCENVY Ökosystems</h3>
+          {/* ALL 8 APP ICONS & SPLASH SCREENS (MOBILE) SHOWCASE */}
+          <div style={{background:C.card,border:`1px solid ${C.purple}44`,borderRadius:28,padding:32,marginBottom:48}}>
+            <div style={{textAlign:'center',marginBottom:32}}>
+              <div style={{fontSize:11,fontWeight:800,color:C.purple,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>SPLASH SCREENS & APP ICONS (MOBILE)</div>
+              <h3 style={{fontSize:26,fontWeight:900,color:C.white}}>Die 8 nativen Smartphone-Erlebnisse</h3>
+              <p style={{fontSize:14,color:C.muted,marginTop:6,maxWidth:600,margin:'6px auto 0'}}>Jedes Modul besitzt sein eigenes visuelles Thema, Icon-Branding und mobilen Splash-Screen.</p>
             </div>
             
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))',gap:16}}>
+            {/* 8 Phone Mockups Horizontal Row */}
+            <div style={{display:'flex',gap:16,overflowX:'auto',paddingBottom:20,paddingTop:10,scrollbarWidth:'thin'}}>
               {[
-                { name: 'Flow', svg: flowSvg, sub: 'flow.scenvy.de', color: '#8B5CF6' },
-                { name: 'Menu', svg: menuSvg, sub: 'menu.scenvy.de', color: '#F97316' },
-                { name: 'Board', svg: boardSvg, sub: 'board.scenvy.de', color: '#3B82F6' },
-                { name: 'Host', svg: hostSvg, sub: 'host.scenvy.de', color: '#10B981' },
-                { name: 'Store', svg: storeSvg, sub: 'store.scenvy.de', color: '#F43F5E' },
-                { name: 'Link', svg: linkSvg, sub: 'link.scenvy.de', color: '#6366F1' },
-                { name: 'Magic AI', svg: magicSvg, sub: 'ai.scenvy.de', color: '#A855F7' },
-              ].map((m, idx) => (
-                <div key={idx} style={{background:C.bg,border:`1px solid ${m.color}33`,borderRadius:16,padding:16,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
-                  <img src={m.svg} alt={m.name} style={{width:72,height:72,borderRadius:16,boxShadow:`0 6px 20px ${m.color}33`}} />
-                  <div style={{fontSize:13,fontWeight:800,color:C.white}}>{m.name}</div>
-                  <div style={{fontSize:10,fontFamily:'monospace',color:m.color,background:`${m.color}15`,padding:'2px 6px',borderRadius:6}}>{m.sub}</div>
+                'scenvy',
+                'flow',
+                'menu',
+                'board',
+                'host',
+                'link',
+                'store',
+                'magic'
+              ].map((mod) => (
+                <div key={mod} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
+                  <ScenvyPhoneMockup module={mod} size="normal" />
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:12,fontWeight:800,color:C.white,textTransform:'uppercase'}}>{mod}</div>
+                    <div style={{fontSize:10,fontFamily:'monospace',color:MODULE_COLORS[mod]?.primary || C.purple}}>{MODULE_COLORS[mod]?.domain}</div>
+                  </div>
                 </div>
               ))}
+            </div>
+
+            {/* App Icons Grid */}
+            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:24,marginTop:12}}>
+              <div style={{fontSize:11,fontWeight:800,color:C.muted,letterSpacing:1.5,textAlign:'center',textTransform:'uppercase',marginBottom:16}}>APP ICONS (SQUIRCLE FORMAT)</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:16}}>
+                {[
+                  { id: 'scenvy', name: 'Scenvy Main' },
+                  { id: 'flow', name: 'Flow' },
+                  { id: 'menu', name: 'Menu' },
+                  { id: 'board', name: 'Board' },
+                  { id: 'host', name: 'Host' },
+                  { id: 'link', name: 'Link' },
+                  { id: 'store', name: 'Store' },
+                  { id: 'magic', name: 'Magic' }
+                ].map((m) => (
+                  <div key={m.id} style={{background:C.bg,border:`1px solid ${MODULE_COLORS[m.id]?.primary || C.purple}33`,borderRadius:16,padding:14,textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+                    <ScenvyAppIcon module={m.id} size={56} />
+                    <div style={{fontSize:12,fontWeight:800,color:C.white}}>{m.name}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

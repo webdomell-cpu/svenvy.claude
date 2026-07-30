@@ -26,6 +26,12 @@ export default function GuestMenuReel({ initialMenu, isPreview = false, onSaveMe
     setTimeout(() => setToast(null), 3000)
   }
 
+  const branding = menu?.branding || {}
+  const categories = menu?.categories || []
+  const allergensLegend = menu?.allergensLegend || {}
+  const primaryColor = branding.primaryColor || '#7C3AED'
+  const secondaryColor = branding.secondaryColor || '#FF2D8D'
+
   const downloadSingleHtml = () => {
     notify('📄 Generiere autarke HTML Datei...')
     const htmlContent = generateStandaloneHTML(menu)
@@ -86,12 +92,6 @@ export default function GuestMenuReel({ initialMenu, isPreview = false, onSaveMe
   }
 
   if (!menu) return null
-
-  const branding = menu.branding || {}
-  const categories = menu.categories || []
-  const allergensLegend = menu.allergensLegend || {}
-  const primaryColor = branding.primaryColor || '#7C3AED'
-  const secondaryColor = branding.secondaryColor || '#FF2D8D'
 
   const scrollToCat = (catId) => {
     setActiveCat(catId)
@@ -187,6 +187,18 @@ export default function GuestMenuReel({ initialMenu, isPreview = false, onSaveMe
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {onSaveMenu && (
+              <button 
+                onClick={() => {
+                  onSaveMenu(menu)
+                  notify('💾 Speisekarte erfolgreich gespeichert!')
+                }} 
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #10B981, #059669)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 800, boxShadow: '0 4px 12px rgba(16,185,129,0.4)' }}
+              >
+                <Check size={14} /> Speisekarte Speichern
+              </button>
+            )}
+
             <button onClick={() => setEditorMode(!editorMode)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: `1px solid ${editorMode ? primaryColor : 'rgba(255,255,255,0.2)'}`, background: editorMode ? primaryColor : 'transparent', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               <Edit3 size={14} /> {editorMode ? 'WYSIWYG Beenden' : 'WYSIWYG Editor'}
             </button>

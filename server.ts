@@ -14,7 +14,7 @@ import downloadZipHandler from './api/download-zip.js'
 
 async function startServer() {
   const app = express()
-  const PORT = Number(process.env.PORT) || 3000
+  const PORT = 3000
 
   // Increased body limit for menu uploads and images
   app.use(express.json({ limit: '25mb' }))

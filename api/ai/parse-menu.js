@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { documentText, menuItemsText, venue, style, primaryColor, secondaryColor, phone, whatsapp, address, instagram } = req.body || {}
+  const { documentText, menuItemsText, venue, style, primaryColor, secondaryColor, phone, whatsapp, address, instagram, fileBase64, fileMimeType } = req.body || {}
 
   const rawInput = (documentText || '') + '\n' + (menuItemsText || '')
 
@@ -118,21 +118,35 @@ export default async function handler(req, res) {
     }
   }
 
-  if (!rawInput.trim()) {
+  if (!rawInput.trim() && !fileBase64) {
     return res.status(200).json(defaultSample)
   }
 
   try {
-    const prompt = `You are an expert AI Restaurant Menu Specialist for SCENVY.
-Convert the following unstructured restaurant menu / document text into a structured JSON menu package.
-Extract categories, dishes, descriptions, prices, variants, allergens (A, B, C, D, G, H, L, M), and diet tags (vegan, vegetarian, glutenfree, halal).
-Translate dish titles and descriptions into BOTH German (de) and English (en).
+    const promptText = `You are an expert AI Restaurant Menu Specialist for SCENVY.
+Convert the provided restaurant menu document (PDF / image / text) into a complete, structured JSON menu package.
+
+CRITICAL INSTRUCTIONS:
+1. Extract EVERY SINGLE dish item and category present in the document or image. DO NOT omit, truncate, or artificially limit items. Extract all items (whether 10, 30, or 60+ dishes).
+2. Extract or infer contact & venue branding details from the header/footer of the document if present:
+   - Restaurant Name -> "branding.name" (if not in doc, fallback to "${venue || 'Gourmet Restaurant'}")
+   - Phone Number -> "branding.phone" (e.g. "+49...")
+   - Address -> "branding.address"
+   - WhatsApp -> "branding.whatsapp"
+   - Instagram handle -> "branding.instagram"
+3. For every dish item:
+   - "name": { "de": "German Name", "en": "English Name" }
+   - "description": { "de": "German Description", "en": "English Description" }
+   - "price": "12.50 €"
+   - "allergens": Array of allergen codes [A, B, C, D, G, H, L, M]
+   - "diet": Array of diet tags ["vegan", "vegetarian", "glutenfree", "halal"]
+4. Group dishes logically into categories with appropriate emojis.
 
 Return strictly JSON matching this structure:
 {
   "branding": {
     "name": "${venue || 'Restaurant'}",
-    "style": "${style || 'modern'}",
+    "style": "${style || 'fine_dining'}",
     "primaryColor": "${primaryColor || '#7C3AED'}",
     "secondaryColor": "${secondaryColor || '#FF2D8D'}",
     "phone": "${phone || ''}",
@@ -170,15 +184,32 @@ Return strictly JSON matching this structure:
   }
 }
 
-Raw Menu Input Text:
+Raw Input Context:
 """
-${rawInput.slice(0, 10000)}
+${rawInput.slice(0, 15000)}
 """`
 
     const parsed = await executeAiTask(async (ai) => {
+      let contents = []
+
+      if (fileBase64) {
+        let cleanBase64 = fileBase64
+        if (cleanBase64.includes(';base64,')) {
+          cleanBase64 = cleanBase64.split(';base64,')[1]
+        }
+        contents.push({
+          inlineData: {
+            data: cleanBase64,
+            mimeType: fileMimeType || 'application/pdf'
+          }
+        })
+      }
+
+      contents.push(promptText)
+
       const response = await ai.models.generateContent({
         model: 'gemini-3.6-flash',
-        contents: prompt,
+        contents,
         config: { responseMimeType: 'application/json' }
       })
 

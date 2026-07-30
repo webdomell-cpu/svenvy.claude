@@ -45,6 +45,8 @@ export const denormalizeReel = (r, tenantId) => ({
   cta_action:  r.ctaAction || r.cta_action || 'url',
   media_url:   r.mediaUrl || r.media_url || null,
   media_type:  r.mediaType || r.media_type || 'image',
+  loc:         r.loc || '',
+  scheduled_at: r.scheduledAt || r.scheduled_at || null,
   updated_at:  new Date().toISOString()
 })
 
@@ -93,12 +95,15 @@ export function useSaveReel() {
         await setDoc(docRef, payload, { merge: true })
       } catch (e) {
         console.warn('Firestore save reel fallback:', e)
-        const stored = JSON.parse(localStorage.getItem(`demo_reels_${finalTenantId}`) || '[]')
-        const index = stored.findIndex(l => l.id === payload.id)
-        if (index >= 0) stored[index] = payload
-        else stored.push(payload)
-        localStorage.setItem(`demo_reels_${finalTenantId}`, JSON.stringify(stored))
       }
+
+      // Always sync to localStorage so local queries find it instantly
+      const stored = JSON.parse(localStorage.getItem(`demo_reels_${finalTenantId}`) || '[]')
+      const index = stored.findIndex(l => l.id === payload.id)
+      if (index >= 0) stored[index] = payload
+      else stored.push(payload)
+      localStorage.setItem(`demo_reels_${finalTenantId}`, JSON.stringify(stored))
+
       return normalizeReel(payload)
     },
     onSuccess: () => {
@@ -164,6 +169,8 @@ export function useSaveLocation() {
         id: location.id || crypto.randomUUID(),
         tenant_id: finalTenantId,
         name: location.name || 'Neuer Standort',
+        address: location.address || '',
+        zip: location.zip || '',
         city: location.city || 'Berlin',
         country: location.country || 'DE',
         active: location.active !== false,
@@ -174,12 +181,15 @@ export function useSaveLocation() {
         await setDoc(doc(db, 'locations', payload.id), payload, { merge: true })
       } catch (e) {
         console.warn('Firestore save location fallback:', e)
-        const stored = JSON.parse(localStorage.getItem(`demo_locations_${finalTenantId}`) || '[]')
-        const index = stored.findIndex(l => l.id === payload.id)
-        if (index >= 0) stored[index] = payload
-        else stored.push(payload)
-        localStorage.setItem(`demo_locations_${finalTenantId}`, JSON.stringify(stored))
       }
+
+      // Always sync to localStorage demo_locations
+      const stored = JSON.parse(localStorage.getItem(`demo_locations_${finalTenantId}`) || '[]')
+      const index = stored.findIndex(l => l.id === payload.id)
+      if (index >= 0) stored[index] = payload
+      else stored.push(payload)
+      localStorage.setItem(`demo_locations_${finalTenantId}`, JSON.stringify(stored))
+
       return payload
     },
     onSuccess: () =>
@@ -471,17 +481,16 @@ export async function fetchReelsByLocation(locationId) {
   try {
     const snap = await getDocs(query(collection(db, 'reels')))
     const allReels = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    results = allReels.filter(r => {
+    const matching = allReels.filter(r => {
       const loc = r.location_id || r.locationId
       return !loc || loc === 'ALL' || loc === 'all' || loc === locationId
     })
-    if (results.length > 0) return results
+    results.push(...matching)
   } catch (e) {
     console.warn('fetchReelsByLocation error:', e)
   }
 
   // Search local storage across all demo_reels_ keys
-  let foundLocal = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (key && key.startsWith('demo_reels_')) {
@@ -491,14 +500,18 @@ export async function fetchReelsByLocation(locationId) {
           const loc = r.location_id || r.locationId
           return !loc || loc === 'ALL' || loc === 'all' || loc === locationId
         })
-        foundLocal.push(...matching)
+        for (const m of matching) {
+          if (!results.some(existing => existing.id === m.id)) {
+            results.push(m)
+          }
+        }
       } catch (err) {
         console.warn('LocalStorage reel parse error:', err)
       }
     }
   }
 
-  if (foundLocal.length > 0) return foundLocal
+  if (results.length > 0) return results
 
   // Demo fallback reels so guest view is never blank
   return [
