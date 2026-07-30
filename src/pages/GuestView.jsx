@@ -11,6 +11,7 @@ export default function GuestView() {
   const [curr, setCurr] = useState(0)
   const [loading, setLoading] = useState(true)
   const [liked, setLiked] = useState({})
+  const [mediaError, setMediaError] = useState({})
 
   useEffect(() => {
     let ignore = false
@@ -31,10 +32,10 @@ export default function GuestView() {
         if (loc) {
           setLocation(loc)
           recordScan(locationId)
-          const rData = await fetchReelsByLocation(locationId)
-          if (!ignore) {
-            setReels(rData.map(toGuestReel))
-          }
+        }
+        const rData = await fetchReelsByLocation(locationId)
+        if (!ignore) {
+          setReels(rData.map(toGuestReel))
         }
       } catch (err) {
         console.error('Error loading guest view:', err)
@@ -59,14 +60,14 @@ export default function GuestView() {
     return (
       <div style={{ height: '100vh', background: '#0D0D14', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>✨</div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{location?.name || 'Venue'}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{location?.name || 'SCENVY Partner Venue'}</div>
         <div style={{ color: '#94A3B8', fontSize: 14 }}>Derzeit sind keine aktiven Angebote verfügbar.</div>
       </div>
     )
   }
 
-  const [mediaError, setMediaError] = useState({})
-  const r = reels[curr]
+  const r = reels[curr] || reels[0]
+  if (!r) return null
 
   const fallbackImages = {
     OFFER: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop',

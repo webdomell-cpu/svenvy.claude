@@ -96,25 +96,33 @@ export default function MenuGenerator({ embedded = false, initialTab }) {
 
     // Read as Base64 for Multimodal Gemini AI processing
     const reader = new FileReader()
+    reader.onerror = () => {
+      notify(`❌ Fehler beim Lesen der Datei "${file.name}". Bitte erneut versuchen.`)
+    }
     reader.onload = async (event) => {
-      const base64Str = event.target.result
-      setFileBase64(base64Str)
+      try {
+        const base64Str = event.target.result
+        setFileBase64(base64Str)
 
-      if (file.type.startsWith('image/')) {
-        setUploadedImage(base64Str)
-        setDocumentText(`[Foto-Speisekarte: ${file.name}]`)
-        notify(`📸 Foto-Speisekarte "${file.name}" geladen & bereit für KI-Analyse`)
-      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        setDocumentText(`[PDF-Speisekarte: ${file.name}]`)
-        notify(`📄 PDF-Speisekarte "${file.name}" hochgeladen & bereit für KI-Analyse`)
-      } else {
-        // Plain text or doc
-        if (typeof base64Str === 'string' && !base64Str.startsWith('data:')) {
-          setDocumentText(base64Str)
+        if (file.type.startsWith('image/')) {
+          setUploadedImage(base64Str)
+          setDocumentText(`[Foto-Speisekarte: ${file.name}]`)
+          notify(`📸 Foto-Speisekarte "${file.name}" geladen & bereit für KI-Analyse`)
+        } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          setDocumentText(`[PDF-Speisekarte: ${file.name}]`)
+          notify(`📄 PDF-Speisekarte "${file.name}" hochgeladen & bereit für KI-Analyse`)
         } else {
-          setDocumentText(`[Dokument-Speisekarte: ${file.name}]`)
+          // Plain text or doc
+          if (typeof base64Str === 'string' && !base64Str.startsWith('data:')) {
+            setDocumentText(base64Str)
+          } else {
+            setDocumentText(`[Dokument-Speisekarte: ${file.name}]`)
+          }
+          notify(`📄 Datei "${file.name}" geladen`)
         }
-        notify(`📄 Datei "${file.name}" geladen`)
+      } catch (err) {
+        console.error('Error processing uploaded file:', err)
+        notify(`⚠️ Verarbeitungsfehler bei "${file.name}".`)
       }
     }
 

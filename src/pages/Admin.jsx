@@ -5,7 +5,7 @@ import { ScenvyLogoFull } from '@/components/ScenvyLogo'
 import { useTenants, useUpdateTenant, useDeleteTenant, useReels, useSaveReel, useLocations } from '@/lib/db'
 import { useAuth } from '@/lib/AuthContext'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Users, TrendingUp, MapPin, Film, Activity, LogOut, RefreshCw, Save, Mail, Shield, Building2, CreditCard, X, ChevronRight, Trash2, Power, CheckCircle, AlertCircle, ExternalLink, Package, DollarSign, FileText, Download, Plus, Check, Play, Zap } from 'lucide-react'
+import { Users, TrendingUp, MapPin, Film, Activity, LogOut, RefreshCw, Save, Mail, Shield, Building2, CreditCard, X, ChevronRight, Trash2, Power, CheckCircle, AlertCircle, ExternalLink, Package, DollarSign, FileText, Download, Plus, Check, Play, Zap, Globe, Sliders, Layout } from 'lucide-react'
 
 const MRR_TREND = [
   {month:'Jan',mrr:0},{month:'Feb',mrr:0},{month:'Mar',mrr:29},
@@ -51,6 +51,42 @@ export default function Admin() {
       module_menu: 49,
       module_board: 79,
       module_host: 39,
+      show_pricing_on_landing: true,
+      starter_cta_text: 'Kostenlos starten',
+      starter_cta_action: 'register',
+      pro_cta_text: 'Jetzt starten',
+      pro_cta_action: 'register',
+      enterprise_cta_text: 'Kontaktieren',
+      enterprise_cta_action: 'contact',
+    }
+  })
+
+  const [landingConfig, setLandingConfig] = useState(() => {
+    const saved = localStorage.getItem('scenvy_landing_config')
+    return saved ? JSON.parse(saved) : {
+      show_flow_page: true,
+      show_menu_page: true,
+      show_board_page: true,
+      show_host_page: true,
+      show_store_page: true,
+      show_pricing_section: true,
+      show_top_banner: true,
+      top_banner_text: '🔥 Neu: AI Speisekarten-Reel Generator v2 ist live!',
+      top_banner_link: '/menu-addon',
+      show_login_btn: true,
+      show_register_btn: true,
+      header_cta_text: 'Kostenlos starten →',
+      header_cta_action: 'register',
+      header_cta_url: '',
+      hero_kicker: 'DIE ZUKUNFT DES VENUE-MARKETINGS',
+      hero_title: 'Verwandle jeden Ort in ein scrollbares Erlebnis.',
+      hero_subtitle: 'SCENVY verwandelt QR-Codes in TikTok-artige vertikale Reels. Echtzeit-Angebote, KI-Inhalte — kein App-Download nötig.',
+      hero_btn_primary_text: 'Kostenlos starten →',
+      hero_btn_primary_action: 'register',
+      hero_btn_primary_url: '',
+      hero_btn_secondary_text: 'Demo ansehen',
+      hero_btn_secondary_action: 'demo',
+      hero_btn_secondary_url: '',
     }
   })
 
@@ -112,15 +148,23 @@ export default function Admin() {
 
   const savePricingConfig = () => {
     localStorage.setItem('scenvy_pricing_config', JSON.stringify(pricingConfig))
+    window.dispatchEvent(new Event('scenvy_config_updated'))
     notify('✅ Preise & Tarife gespeichert!')
+  }
+
+  const saveLandingConfig = () => {
+    localStorage.setItem('scenvy_landing_config', JSON.stringify(landingConfig))
+    window.dispatchEvent(new Event('scenvy_config_updated'))
+    notify('✅ Webseiten & Landing-Page Einstellungen gespeichert!')
   }
 
   const tabs = [
     {id:'tenants',   label:'Mandanten & Einstieg', icon:<Users size={15}/>},
-    {id:'ai_system', label:'Multi-KI & System Status', icon:<Activity size={15}/>},
-    {id:'modules',   label:'Modul-Freigaben',      icon:<Package size={15}/>},
-    {id:'billing',   label:'Abrechnung & Stripe',  icon:<CreditCard size={15}/>},
+    {id:'website',   label:'Landing & Webseiten',  icon:<Globe size={15}/>},
     {id:'pricing',   label:'Preise & Tarife',       icon:<DollarSign size={15}/>},
+    {id:'modules',   label:'Modul-Freigaben',      icon:<Package size={15}/>},
+    {id:'ai_system', label:'Multi-KI & System Status', icon:<Activity size={15}/>},
+    {id:'billing',   label:'Abrechnung & Stripe',  icon:<CreditCard size={15}/>},
     {id:'email',     label:'E-Mail & Forwarding',  icon:<Mail size={15}/>},
     {id:'features',  label:'Feature Flags',        icon:<Shield size={15}/>},
   ]
@@ -716,13 +760,253 @@ export default function Admin() {
           </div>
         )}
 
+        {/* Landing Pages & Website Steuerung Tab */}
+        {tab==='website' && (
+          <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,borderBottom:`1px solid ${C.border}`,paddingBottom:16}}>
+              <div>
+                <div style={{fontSize:18,fontWeight:800,display:'flex',alignItems:'center',gap:8}}>
+                  <Globe size={20} color={C.purple}/> 🌐 Landing-Pages & Webseiten-Steuerung
+                </div>
+                <div style={{fontSize:13,color:C.muted,marginTop:4}}>
+                  Steuere zentral aus dem Superadmin, welche Unterseiten, Menü-Links & Buttons auf der Plattform und Landing-Page sichtbar sind.
+                </div>
+              </div>
+              <button
+                onClick={saveLandingConfig}
+                style={{padding:'10px 22px',borderRadius:10,border:'none',background:grad(C.purple,C.pink),color:C.white,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6,boxShadow:`0 4px 16px ${C.purple}44`}}
+              >
+                <Save size={16}/> Webseiten-Layout Speichern
+              </button>
+            </div>
+
+            {/* 1. SEITEN & NAVIGATION SIBHTBARKEIT */}
+            <div style={{marginBottom:28}}>
+              <div style={{fontSize:14,fontWeight:800,marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                <Layout size={16} color={C.blue}/> 1. Sichtbare Seiten & Modul-Links im Header Navigation
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12}}>
+                {[
+                  { k: 'show_flow_page', label: '🎬 SCENVY Flow', route: '/reels-addon', color: C.purple },
+                  { k: 'show_menu_page', label: '🍽️ SCENVY Menu', route: '/menu-addon', color: C.orange },
+                  { k: 'show_board_page', label: '📺 SCENVY Board', route: '#modules', color: C.blue },
+                  { k: 'show_host_page', label: '🏨 SCENVY Host', route: '#modules', color: C.green },
+                  { k: 'show_store_page', label: '🛒 Store & Tags', route: '#store', color: C.pink },
+                ].map(item => (
+                  <div
+                    key={item.k}
+                    onClick={() => setLandingConfig(prev => ({ ...prev, [item.k]: !prev[item.k] }))}
+                    style={{
+                      padding: '14px', borderRadius: 12, cursor: 'pointer',
+                      background: landingConfig[item.k] ? `${item.color}15` : C.bg,
+                      border: `1px solid ${landingConfig[item.k] ? item.color : C.border}`,
+                      transition: 'all .2s'
+                    }}
+                  >
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                      <span style={{fontSize:13,fontWeight:700,color:landingConfig[item.k]?C.white:C.muted}}>{item.label}</span>
+                      <div style={{width:16,height:16,borderRadius:4,background:landingConfig[item.k]?item.color:C.dim,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:900}}>
+                        {landingConfig[item.k] ? '✓' : ''}
+                      </div>
+                    </div>
+                    <div style={{fontSize:10,color:C.muted}}>{item.route}</div>
+                    <div style={{fontSize:11,fontWeight:700,marginTop:8,color:landingConfig[item.k]?item.color:C.muted}}>
+                      {landingConfig[item.k] ? '● Aktiv im Header' : '○ Ausgeblendet'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. TOP BANNER */}
+            <div style={{marginBottom:28,background:C.bg,padding:18,borderRadius:14,border:`1px solid ${C.border}`}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                <div style={{fontSize:14,fontWeight:800,display:'flex',alignItems:'center',gap:8}}>
+                  <Zap size={16} color={C.pink}/> 2. Ankündigungs-Banner (Header Top Bar)
+                </div>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,fontWeight:700,color:landingConfig.show_top_banner?C.pink:C.muted}}>
+                  <input
+                    type="checkbox"
+                    checked={landingConfig.show_top_banner}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, show_top_banner: e.target.checked }))}
+                  />
+                  Banner anzeigen
+                </label>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12}}>
+                <div>
+                  <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:4}}>BANNER TEXT</label>
+                  <input
+                    type="text"
+                    value={landingConfig.top_banner_text}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, top_banner_text: e.target.value }))}
+                    style={{width:'100%',background:C.card,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none'}}
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:4}}>BANNER ZIEL-LINK / ROUTE</label>
+                  <input
+                    type="text"
+                    value={landingConfig.top_banner_link}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, top_banner_link: e.target.value }))}
+                    style={{width:'100%',background:C.card,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none'}}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. HERO SECTION & BUTTONS CONTROL */}
+            <div style={{marginBottom:28}}>
+              <div style={{fontSize:14,fontWeight:800,marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                <Sliders size={16} color={C.purple}/> 3. Hero Hauptbereich & Call-To-Action Buttons
+              </div>
+              <div style={{display:'grid',gap:14,background:C.bg,padding:18,borderRadius:14,border:`1px solid ${C.border}`}}>
+                <div>
+                  <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:4}}>EYEBROW KICKER TEXT</label>
+                  <input
+                    type="text"
+                    value={landingConfig.hero_kicker}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, hero_kicker: e.target.value }))}
+                    style={{width:'100%',background:C.card,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none'}}
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:4}}>HAUPT-ÜBERSCHRIFT (HERO TITLE)</label>
+                  <input
+                    type="text"
+                    value={landingConfig.hero_title}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, hero_title: e.target.value }))}
+                    style={{width:'100%',background:C.card,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:14,fontWeight:700,outline:'none'}}
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:C.muted,display:'block',marginBottom:4}}>UNTERTITEL / DESCRIPTION</label>
+                  <textarea
+                    rows={2}
+                    value={landingConfig.hero_subtitle}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, hero_subtitle: e.target.value }))}
+                    style={{width:'100%',background:C.card,color:C.white,padding:'10px 14px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:'none'}}
+                  />
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:10}}>
+                  <div style={{background:C.card,padding:14,borderRadius:10,border:`1px solid ${C.purple}44`}}>
+                    <div style={{fontSize:12,fontWeight:800,color:C.purple,marginBottom:8}}>PRIMÄRER BUTTON (CTA 1)</div>
+                    <div style={{marginBottom:8}}>
+                      <label style={{fontSize:10,color:C.muted,display:'block',marginBottom:2}}>BUTTON TEXT</label>
+                      <input
+                        type="text"
+                        value={landingConfig.hero_btn_primary_text}
+                        onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_primary_text: e.target.value }))}
+                        style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10,color:C.muted,display:'block',marginBottom:2}}>BUTTON ZIEL-AKTION</label>
+                      <select
+                        value={landingConfig.hero_btn_primary_action}
+                        onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_primary_action: e.target.value }))}
+                        style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                      >
+                        <option value="register">Registrieren (/auth?mode=register)</option>
+                        <option value="demo">Demo-Bereich (#demo)</option>
+                        <option value="contact">Enterprise Modal</option>
+                        <option value="custom">Eigene URL</option>
+                      </select>
+                    </div>
+                    {landingConfig.hero_btn_primary_action === 'custom' && (
+                      <div style={{marginTop:8}}>
+                        <input
+                          type="text"
+                          placeholder="https://..."
+                          value={landingConfig.hero_btn_primary_url}
+                          onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_primary_url: e.target.value }))}
+                          style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{background:C.card,padding:14,borderRadius:10,border:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:12,fontWeight:800,color:C.blue,marginBottom:8}}>SEKUNDÄRER BUTTON (CTA 2)</div>
+                    <div style={{marginBottom:8}}>
+                      <label style={{fontSize:10,color:C.muted,display:'block',marginBottom:2}}>BUTTON TEXT</label>
+                      <input
+                        type="text"
+                        value={landingConfig.hero_btn_secondary_text}
+                        onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_secondary_text: e.target.value }))}
+                        style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                      />
+                    </div>
+                    <div>
+                      <label style={{fontSize:10,color:C.muted,display:'block',marginBottom:2}}>BUTTON ZIEL-AKTION</label>
+                      <select
+                        value={landingConfig.hero_btn_secondary_action}
+                        onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_secondary_action: e.target.value }))}
+                        style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                      >
+                        <option value="demo">Demo-Bereich (#demo)</option>
+                        <option value="register">Registrieren (/auth?mode=register)</option>
+                        <option value="contact">Enterprise Modal</option>
+                        <option value="custom">Eigene URL</option>
+                      </select>
+                    </div>
+                    {landingConfig.hero_btn_secondary_action === 'custom' && (
+                      <div style={{marginTop:8}}>
+                        <input
+                          type="text"
+                          placeholder="https://..."
+                          value={landingConfig.hero_btn_secondary_url}
+                          onChange={e => setLandingConfig(prev => ({ ...prev, hero_btn_secondary_url: e.target.value }))}
+                          style={{width:'100%',background:C.bg,color:C.white,padding:'8px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. HEADER BUTTONS TOGGLE */}
+            <div style={{background:C.bg,padding:18,borderRadius:14,border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:14,fontWeight:800,marginBottom:12}}>4. Navigation Header Rechter Bereich Buttons</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16}}>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13}}>
+                  <input
+                    type="checkbox"
+                    checked={landingConfig.show_login_btn}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, show_login_btn: e.target.checked }))}
+                  />
+                  "Einloggen" Button anzeigen
+                </label>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13}}>
+                  <input
+                    type="checkbox"
+                    checked={landingConfig.show_register_btn}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, show_register_btn: e.target.checked }))}
+                  />
+                  "Kostenlos starten" CTA anzeigen
+                </label>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13}}>
+                  <input
+                    type="checkbox"
+                    checked={landingConfig.show_pricing_section}
+                    onChange={e => setLandingConfig(prev => ({ ...prev, show_pricing_section: e.target.checked }))}
+                  />
+                  Preissektion auf Landing-Page anzeigen
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Pricing & Tarife Tab */}
         {tab==='pricing' && (
           <div style={{background:C.card,borderRadius:16,padding:24,border:`1px solid ${C.border}`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
               <div>
-                <div style={{fontSize:16,fontWeight:800}}>🏷️ Preise, Tarife & Individualrabatte</div>
-                <div style={{fontSize:13,color:C.muted,marginTop:2}}>Konfiguriere Standard-Preise für Starter, Pro & Enterprise sowie Modul-Add-On Preise.</div>
+                <div style={{fontSize:16,fontWeight:800}}>🏷️ Preise, Tarife & Button-Steuerung</div>
+                <div style={{fontSize:13,color:C.muted,marginTop:2}}>Konfiguriere Standard-Preise für Starter, Pro & Enterprise sowie Modul-Add-On Preise & CTA-Verlinkungen.</div>
               </div>
               <button
                 onClick={savePricingConfig}
@@ -734,9 +1018,9 @@ export default function Admin() {
 
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:24}}>
               {[
-                { key: 'starter_price', name: 'STARTER', color: C.muted, features: ['1 Standort', 'Bis zu 3 Reels', 'Wasserzeichen'] },
-                { key: 'pro_price', name: 'PRO', color: C.blue, features: ['Unbegrenzte Standorte', 'SNAP KI Speisekarte', 'Full HD Exports'] },
-                { key: 'enterprise_price', name: 'ENTERPRISE', color: C.purple, features: ['Alle Module inklusive', 'SCENVY Board Digital Signage', 'Dedicated Support & White Label'] },
+                { key: 'starter_price', ctaKey: 'starter_cta_text', actKey: 'starter_cta_action', name: 'STARTER', color: C.muted, features: ['1 Standort', 'Bis zu 3 Reels', 'Wasserzeichen'] },
+                { key: 'pro_price', ctaKey: 'pro_cta_text', actKey: 'pro_cta_action', name: 'PRO', color: C.blue, features: ['Unbegrenzte Standorte', 'SNAP KI Speisekarte', 'Full HD Exports'] },
+                { key: 'enterprise_price', ctaKey: 'enterprise_cta_text', actKey: 'enterprise_cta_action', name: 'ENTERPRISE', color: C.purple, features: ['Alle Module inklusive', 'SCENVY Board Digital Signage', 'Dedicated Support & White Label'] },
               ].map(p => (
                 <div key={p.name} style={{background:C.bg,padding:20,borderRadius:14,border:`1px solid ${p.color}44`}}>
                   <div style={{fontSize:12,fontWeight:800,color:p.color,letterSpacing:1}}>{p.name} PLAN</div>
@@ -748,6 +1032,15 @@ export default function Admin() {
                       style={{width:90,background:C.card,color:C.white,padding:'8px 12px',borderRadius:8,border:`1px solid ${C.border}`,fontSize:18,fontWeight:900,outline:'none'}}
                     />
                     <span style={{fontSize:14,fontWeight:700,color:C.muted}}>€ / mtl.</span>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:10,color:C.muted,display:'block',marginBottom:2}}>BUTTON TEXT</label>
+                    <input
+                      type="text"
+                      value={pricingConfig[p.ctaKey] || ''}
+                      onChange={e => setPricingConfig(prev => ({ ...prev, [p.ctaKey]: e.target.value }))}
+                      style={{width:'100%',background:C.card,color:C.white,padding:'6px 10px',borderRadius:6,border:`1px solid ${C.border}`,fontSize:12,outline:'none'}}
+                    />
                   </div>
                   <div style={{display:'grid',gap:6}}>
                     {p.features.map((f, i) => (

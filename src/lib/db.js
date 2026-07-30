@@ -451,9 +451,12 @@ export async function fetchLocation(locationId) {
   if (locationId === 'dt-demo' || locationId === 'DT-Demo') {
     return { id: 'dt-demo', name: 'DT-Demo', address: 'Demo Strasse 12', city: 'Berlin', country: 'DE', active: true }
   }
+  if (locationId === 'loc1') {
+    return { id: 'loc1', name: 'Main Venue', address: 'Gastro Mile 12', city: 'Berlin', country: 'DE', active: true }
+  }
   try {
     const snap = await getDoc(doc(db, 'locations', locationId))
-    if (snap.exists()) return snap.data()
+    if (snap.exists()) return { id: snap.id, ...snap.data() }
   } catch (e) {
     console.warn('fetchLocation error:', e)
   }
@@ -472,7 +475,7 @@ export async function fetchLocation(locationId) {
     }
   }
 
-  return { id: locationId, name: locationId === 'dt-demo' ? 'DT-Demo' : 'SCENVY Partner Venue', address: 'Gastro Mile 12', city: 'Berlin', country: 'DE', active: true }
+  return { id: locationId, name: 'SCENVY Partner Venue', address: 'Gastro Mile 12', city: 'Berlin', country: 'DE', active: true }
 }
 
 export async function fetchReelsByLocation(locationId) {

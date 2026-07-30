@@ -363,14 +363,33 @@ export default function MenuAddonShowcase() {
             </div>
 
             {/* Card 3: Standalone HTML Export */}
-            <div style={{ background: C.card, border: `1px solid ${C.blue}55`, borderRadius: 24, padding: 28, position: 'relative' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: `${C.blue}22`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                <FileText size={24} />
+            <div style={{ background: C.card, border: `1px solid ${C.blue}55`, borderRadius: 24, padding: 28, position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: `${C.blue}22`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                  <FileText size={24} />
+                </div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, color: C.white }}>{t.htmlTitle}</h3>
+                <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>{t.htmlDesc}</p>
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, color: C.white }}>{t.htmlTitle}</h3>
-              <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>{t.htmlDesc}</p>
-              <div style={{ background: '#0D0D14', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 11, color: C.blue, fontWeight: 700 }}>
-                scenvy-digital-menu.html (Autarkic Single-File)
+              <div>
+                <div style={{ background: '#0D0D14', padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 11, color: C.blue, fontWeight: 700, marginBottom: 12 }}>
+                  scenvy-digital-menu.html (Autarkic Single-File)
+                </div>
+                <button
+                  onClick={() => {
+                    const sampleHtml = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>SCENVY Standalone Digital Menu</title><style>body{margin:0;padding:20px;background:#0d0d14;color:#fff;font-family:sans-serif;text-align:center;}h1{color:#8B5CF6;}.item{background:#1a1a24;padding:16px;margin:10px 0;border-radius:12px;border:1px solid #333;}.price{color:#EC4899;font-weight:bold;}</style></head><body><h1>Trattoria Bella Vista</h1><p>Digitales Menü – Autarke Single-File Version</p><div class="item"><h3>Pizza Margherita</h3><p>Frische Tomatensauce, Mozzarella & Basilikum</p><div class="price">€9.50</div></div><div class="item"><h3>Pasta Carbonara</h3><p>Guanciale, Eigelb, Pecorino & schwarzer Pfeffer</p><div class="price">€13.90</div></div><script>console.log("SCENVY Standalone Menu loaded successfully.");</script></body></html>`;
+                    const blob = new Blob([sampleHtml], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'scenvy-digital-menu.html';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 10, border: 'none', background: C.blue, color: C.white, fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <Download size={14} /> Sample Single-File HTML Downloaden
+                </button>
               </div>
             </div>
           </div>
